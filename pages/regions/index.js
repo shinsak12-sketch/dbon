@@ -14,16 +14,16 @@ const REGIONS = [
 
 export default function Regions() {
   return (
-    <main className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold">지역 선택</h1>
-      <p className="text-gray-600 mt-2">보고 싶은 지역을 선택하세요.</p>
+    <main className="max-w-5xl mx-auto p-8">
+      <h1 className="text-4xl font-extrabold text-emerald-800">지역 선택</h1>
+      <p className="text-gray-600 mt-2">보고 싶은 지역을 선택하세요</p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5 mt-10">
         {REGIONS.map(r => (
           <Link
             key={r.slug}
             href={`/regions/${r.slug}`}
-            className="border rounded-xl p-4 text-center shadow-sm hover:shadow transition bg-white"
+            className="p-6 rounded-2xl bg-white border border-gray-200 shadow hover:shadow-lg hover:bg-emerald-50 hover:scale-105 transition transform text-center font-semibold"
           >
             {r.name}
           </Link>
