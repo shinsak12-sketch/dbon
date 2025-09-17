@@ -12,23 +12,38 @@ export default function RegionBoard() {
 
   return (
     <main className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-bold">{slug.toUpperCase()} 지역 맛집</h1>
+      <h1 className="text-3xl font-extrabold text-emerald-800">
+        {slug.toUpperCase()} 지역 맛집
+      </h1>
 
-      <div className="flex flex-wrap gap-2 mt-4">
-        <button className="px-3 py-1 border rounded-lg bg-white">카테고리</button>
-        <button className="px-3 py-1 border rounded-lg bg-white">정렬: 최신</button>
-        <button className="px-3 py-1 border rounded-lg bg-white">검색</button>
+      {/* 필터바 */}
+      <div className="flex flex-wrap gap-3 mt-6">
+        <button className="px-4 py-2 rounded-lg bg-white border border-gray-200 shadow hover:bg-emerald-50">
+          카테고리
+        </button>
+        <button className="px-4 py-2 rounded-lg bg-white border border-gray-200 shadow hover:bg-emerald-50">
+          정렬: 최신
+        </button>
+        <button className="px-4 py-2 rounded-lg bg-white border border-gray-200 shadow hover:bg-emerald-50">
+          검색
+        </button>
       </div>
 
-      <div className="mt-6 space-y-3">
+      {/* 리스트 */}
+      <div className="mt-8 space-y-5">
         {DUMMY_LIST.map(item => (
-          <div key={item.id} className="p-4 bg-white border rounded-xl shadow-sm">
+          <div
+            key={item.id}
+            className="p-6 bg-white rounded-2xl shadow hover:shadow-lg transition"
+          >
             <div className="flex items-center justify-between">
-              <div className="font-semibold">{item.name}</div>
-              <div className="text-sm">★ {item.rating.toFixed(1)}</div>
+              <h2 className="font-bold text-lg">{item.name}</h2>
+              <span className="text-yellow-500 font-semibold">★ {item.rating.toFixed(1)}</span>
             </div>
-            <div className="text-sm text-gray-600 mt-1">#{item.tags.join(" #")}</div>
-            <div className="text-xs text-gray-500 mt-1">
+            <div className="text-sm text-gray-600 mt-1">
+              #{item.tags.join(" #")}
+            </div>
+            <div className="text-xs text-gray-500 mt-2">
               저장 {item.saves} · 댓글 {item.comments}
             </div>
           </div>
