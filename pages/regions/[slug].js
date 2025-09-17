@@ -1,42 +1,34 @@
-export default function RegionBoard({ query }) {
-  // Next 14 pages router에선 getInitialProps 없이도 query는 없어도 OK.
-  // 간단히 URL에서 지역명만 표시:
-  const slug = typeof window !== "undefined"
-    ? window.location.pathname.split("/").pop()
-    : "";
+import { useRouter } from "next/router";
+
+export default function RegionBoard() {
+  const { query } = useRouter();
+  const slug = (query.slug || "").toString();
 
   const DUMMY_LIST = [
     { id: 1, name: "을지로 냉면집", rating: 4.7, tags: ["냉면","노포"], saves: 120, comments: 45 },
     { id: 2, name: "망원동 라멘", rating: 4.5, tags: ["라멘"], saves: 98, comments: 31 },
-    { id: 3, name: "연남 파스타", rating: 4.3, tags: ["파스타","데이트"], saves: 76, comments: 22 },
+    { id: 3, name: "연남 파스타", rating: 4.3, tags: ["파스타","데이트"], saves: 76, comments: 22 }
   ];
 
   return (
-    <main style={{maxWidth: 800, margin: "0 auto", padding: 24}}>
-      <h1 style={{fontSize: 24, fontWeight: 800}}>
-        {slug?.toUpperCase()} 지역 맛집
-      </h1>
+    <main className="max-w-3xl mx-auto p-6">
+      <h1 className="text-2xl font-bold">{slug.toUpperCase()} 지역 맛집</h1>
 
-      <div style={{display:"flex", gap:8, marginTop:16, flexWrap:"wrap"}}>
-        <button style={btn}>카테고리</button>
-        <button style={btn}>정렬: 최신</button>
-        <button style={btn}>검색</button>
+      <div className="flex flex-wrap gap-2 mt-4">
+        <button className="px-3 py-1 border rounded-lg bg-white">카테고리</button>
+        <button className="px-3 py-1 border rounded-lg bg-white">정렬: 최신</button>
+        <button className="px-3 py-1 border rounded-lg bg-white">검색</button>
       </div>
 
-      <div style={{marginTop:24, display:"grid", gap:12}}>
+      <div className="mt-6 space-y-3">
         {DUMMY_LIST.map(item => (
-          <div key={item.id} style={{
-            padding:16, background:"#fff", border:"1px solid #e5e7eb",
-            borderRadius:12, boxShadow:"0 2px 8px rgba(0,0,0,0.05)"
-          }}>
-            <div style={{display:"flex", justifyContent:"space-between"}}>
-              <div style={{fontWeight:600}}>{item.name}</div>
-              <div style={{fontSize:12}}>★ {item.rating.toFixed(1)}</div>
+          <div key={item.id} className="p-4 bg-white border rounded-xl shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="font-semibold">{item.name}</div>
+              <div className="text-sm">★ {item.rating.toFixed(1)}</div>
             </div>
-            <div style={{fontSize:13, color:"#6b7280", marginTop:4}}>
-              #{item.tags.join(" #")}
-            </div>
-            <div style={{fontSize:12, color:"#9ca3af", marginTop:4}}>
+            <div className="text-sm text-gray-600 mt-1">#{item.tags.join(" #")}</div>
+            <div className="text-xs text-gray-500 mt-1">
               저장 {item.saves} · 댓글 {item.comments}
             </div>
           </div>
@@ -45,10 +37,3 @@ export default function RegionBoard({ query }) {
     </main>
   );
 }
-
-const btn = {
-  padding: "6px 12px",
-  border: "1px solid #e5e7eb",
-  borderRadius: 10,
-  background: "#fff"
-};
