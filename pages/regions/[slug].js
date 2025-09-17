@@ -1,50 +1,52 @@
+// pages/regions/[slug].js
 import prisma from "../../lib/prisma";
 
 export async function getServerSideProps({ params }) {
-  const place = await prisma.place.findUnique({
-    where: { slug: params.slug },
-    include: { reviews: { orderBy: { createdAt: "desc" } } }
+  const region = await prisma.region.findUnique({
+    where: { slug: params.slug }
   });
-  if (!place) return { notFound: true };
-  return { props: { place } };
+  if (!region) return { notFound: true };
+
+  const places = await prisma.place.findMany({
+    where: { regionId: region.id },
+    orderBy: [{ avgRating: "desc" }, { reviewsCount: "desc" }]
+  });
+
+  return { props: { region, places } };
 }
 
-export default function PlaceDetail({ place }) {
+export default function RegionBoard({ region, places }) {
   return (
-    <main className="max-w-2xl mx-auto p-6">
-      <h1 className="text-3xl font-extrabold text-emerald-800">{place.name}</h1>
-      <div className="flex items-center gap-4 mt-2">
-        <span className="text-yellow-500 font-bold text-lg">★ {place.avgRating.toFixed(1)}</span>
-        <span className="text-gray-500 text-sm">리뷰 {place.reviewsCount}개</span>
-      </div>
-
-      {/* 리뷰 리스트 */}
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold">리뷰</h2>
-        {place.reviews.length === 0 && (
-          <p className="text-gray-500 mt-2">아직 리뷰가 없습니다. 첫 리뷰를 남겨보세요!</p>
-        )}
-        <div className="mt-4 space-y-4">
-          {place.reviews.map(r => (
-            <div key={r.id} className="p-4 bg-white rounded-xl border shadow">
-              <div className="flex items-center justify-between">
-                <span className="text-yellow-500">★ {r.rating}</span>
-                <span className="text-xs text-gray-400">{new Date(r.createdAt).toLocaleDateString("ko-KR")}</span>
-              </div>
-              <p className="mt-2 text-gray-700">{r.content}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 리뷰 작성 버튼 */}
-      <div className="mt-10">
+    <main className="max-w-3xl mx-auto p-6">
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-3xl font-extrabold text-emerald-800">
+          {region.name} 지역 맛집
+        </h1>
         <a
-          href={`/places/${place.slug}/review`}
-          className="px-6 py-3 rounded-xl bg-emerald-700 text-white font-semibold hover:bg-emerald-800"
+          href={`/places/new?region=${region.slug}`}
+          className="px-4 py-2 rounded-lg bg-emerald-700 text-white font-semibold hover:bg-emerald-800"
         >
-          리뷰 작성하기
+          맛집 등록
         </a>
+      </div>
+
+      <div className="mt-6 space-y-5">
+        {places.length === 0 && (
+          <div className="text-gray-500">아직 등록된 맛집이 없어요. 첫 번째로 올려보세요!</div>
+        )}
+        {places.map(p => (
+          <div key={p.id} className="p-6 bg-white rounded-2xl shadow hover:shadow-lg transition">
+            <div className="flex items-center justify-between">
+              <a href={`/places/${p.slug}`} className="font-bold text-lg text-emerald-800 hover:underline">
+                {p.name}
+              </a>
+              <span className="text-yellow-500 font-semibold">
+                ★ {p.avgRating?.toFixed(1) || "0.0"}
+              </span>
+            </div>
+            <div className="text-xs text-gray-500 mt-1">리뷰 {p.reviewsCount}</div>
+          </div>
+        ))}
       </div>
     </main>
   );
