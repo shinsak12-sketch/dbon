@@ -15,19 +15,21 @@ model Region {
 }
 
 model Place {
-  id       Int      @id @default(autoincrement())
-  name     String
-  slug     String   @unique
-  region   Region   @relation(fields: [regionId], references: [id])
-  regionId Int
-  reviews  Review[]
+  id           Int      @id @default(autoincrement())
+  name         String
+  slug         String   @unique
+  region       Region   @relation(fields: [regionId], references: [id])
+  regionId     Int
+  avgRating    Float    @default(0)
+  reviewsCount Int      @default(0)
+  reviews      Review[]
 }
 
 model Review {
-  id      Int    @id @default(autoincrement())
-  place   Place  @relation(fields: [placeId], references: [id])
-  placeId Int
-  rating  Float
-  content String
+  id        Int      @id @default(autoincrement())
+  place     Place    @relation(fields: [placeId], references: [id])
+  placeId   Int
+  rating    Float
+  content   String
   createdAt DateTime @default(now())
 }
