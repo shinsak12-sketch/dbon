@@ -9,32 +9,22 @@ const REGIONS = [
   { name: "충북", slug: "chungbuk" }, { name: "충남", slug: "chungnam" },
   { name: "전북", slug: "jeonbuk" }, { name: "전남", slug: "jeonnam" },
   { name: "경북", slug: "gyeongbuk" }, { name: "경남", slug: "gyeongnam" },
-  { name: "제주", slug: "jeju" },
+  { name: "제주", slug: "jeju" }
 ];
 
 export default function Regions() {
   return (
-    <main style={{maxWidth: 960, margin: "0 auto", padding: 24}}>
-      <h1 style={{fontSize: 28, fontWeight: 800}}>지역 선택</h1>
-      <p style={{color:"#6b7280", marginTop: 6}}>보고 싶은 지역을 선택하세요.</p>
+    <main className="max-w-4xl mx-auto p-6">
+      <h1 className="text-3xl font-bold">지역 선택</h1>
+      <p className="text-gray-600 mt-2">보고 싶은 지역을 선택하세요.</p>
 
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(2, 1fr)",
-        gap: 12,
-        marginTop: 24
-      }}>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-6">
         {REGIONS.map(r => (
-          <Link key={r.slug} href={`/regions/${r.slug}`} style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 12,
-            padding: 16,
-            textAlign: "center",
-            background: "#fff",
-            textDecoration: "none",
-            color: "#111827",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-          }}>
+          <Link
+            key={r.slug}
+            href={`/regions/${r.slug}`}
+            className="border rounded-xl p-4 text-center shadow-sm hover:shadow transition bg-white"
+          >
             {r.name}
           </Link>
         ))}
