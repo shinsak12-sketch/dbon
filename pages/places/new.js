@@ -5,7 +5,6 @@ import prisma from "../../lib/prisma";
 import Uploader from "../../components/Uploader";
 import { useRouter } from "next/router";
 
-// 서버에서 지역 목록
 export async function getServerSideProps() {
   const regions = await prisma.region.findMany({
     orderBy: { name: "asc" },
@@ -14,9 +13,39 @@ export async function getServerSideProps() {
   return { props: { regions } };
 }
 
-// 간단 slugify (한글 허용 → 브라우저가 인코딩)
+// 간단 slugify (한글 허용)
 const slugify = (s = "") =>
-  s.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9가-힣\-]/g, "").replace(/\-+/g, "-") || "place";
+  s
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9가-힣\-]/g, "")
+    .replace(/\-+/g, "-") || "place";
+
+// 주소에서 지역 슬러그 추정 (필요 시 추가/수정 가능)
+function guessRegionSlugFromAddress(addr = "") {
+  const m = [
+    { key: "서울", slug: "seoul" },
+    { key: "경기", slug: "gyeonggi" },
+    { key: "인천", slug: "incheon" },
+    { key: "부산", slug: "busan" },
+    { key: "대구", slug: "daegu" },
+    { key: "광주", slug: "gwangju" },
+    { key: "대전", slug: "daejeon" },
+    { key: "울산", slug: "ulsan" },
+    { key: "세종", slug: "sejong" },
+    { key: "강원", slug: "gangwon" },
+    { key: "충북", slug: "chungbuk" },
+    { key: "충남", slug: "chungnam" },
+    { key: "전북", slug: "jeonbuk" },
+    { key: "전남", slug: "jeonnam" },
+    { key: "경북", slug: "gyeongbuk" },
+    { key: "경남", slug: "gyeongnam" },
+    { key: "제주", slug: "jeju" },
+  ];
+  const hit = m.find((x) => addr.includes(x.key));
+  return hit?.slug;
+}
 
 export default function NewPlace({ regions }) {
   const router = useRouter();
@@ -37,7 +66,6 @@ export default function NewPlace({ regions }) {
   const [results, setResults] = useState([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
 
-  // 이름 입력 시 슬러그 자동 생성(표시는 안함, 내부에서만 사용)
   useEffect(() => setSlug(slugify(name)), [name]);
 
   const canSubmit = useMemo(
@@ -78,9 +106,9 @@ export default function NewPlace({ regions }) {
     }
   }
 
-  // 네이버 검색 호출
+  // 네이버 로컬 검색 (프록시 API)
   async function searchNaver() {
-    const q = finderQuery.trim() || name.trim();
+    const q = (finderQuery || name).trim();
     if (!q) return;
     setLoadingSearch(true);
     try {
@@ -95,16 +123,20 @@ export default function NewPlace({ regions }) {
     }
   }
 
-  // 결과 선택 시 주소/지도 링크 채우기
+  // 결과 선택 시: 이름/주소/지도링크/지역 자동 채우기
   function choosePlace(item) {
+    const cleanTitle = (item.title || "").replace(/<[^>]*>/g, "");
+    setName((prev) => (prev?.trim() ? prev : cleanTitle)); // 이름이 비었으면 자동완성
     const addr = item.roadAddress || item.address || "";
     setAddress(addr);
 
-    // 네이버 지도 링크 (검색 또는 링크 사용)
-    const url =
-      item.link ||
-      `https://map.naver.com/v5/search/${encodeURIComponent(item.title)}`;
+    // 네이버 플레이스 링크가 오면 그걸, 없으면 검색 링크로 대체
+    const url = item.link || `https://map.naver.com/v5/search/${encodeURIComponent(cleanTitle)}`;
     setMapUrl(url);
+
+    // 주소에서 대략 지역 추정해서 드롭다운 세팅
+    const guessed = guessRegionSlugFromAddress(addr);
+    if (guessed) setRegionSlug(guessed);
 
     setFinderOpen(false);
   }
@@ -149,9 +181,10 @@ export default function NewPlace({ regions }) {
             </select>
           </div>
 
-          {/* 네이버에서 찾기 */}
+          {/* 주소/지도 + 네이버 검색 */}
           <div>
             <label className="block text-sm font-medium mb-1">주소/지도</label>
+
             <div className="flex gap-2">
               <input
                 value={address}
@@ -159,15 +192,19 @@ export default function NewPlace({ regions }) {
                 placeholder="주소 (선택)"
                 className="flex-1 border rounded-lg p-3"
               />
-              <a
-                href={mapUrl || "https://map.naver.com"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-2 rounded-lg bg-gray-100 border"
-              >
-                지도열기
-              </a>
+              {/* 장소 선택 전에는 버튼 숨김 → 의미 없는 열기 방지 */}
+              {mapUrl ? (
+                <a
+                  href={mapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 rounded-lg bg-gray-100 border whitespace-nowrap"
+                >
+                  네이버 지도 열기
+                </a>
+              ) : null}
             </div>
+
             <input
               type="url"
               value={mapUrl}
@@ -175,6 +212,7 @@ export default function NewPlace({ regions }) {
               placeholder="네이버 지도 링크 (선택)"
               className="mt-2 w-full border rounded-lg p-3"
             />
+
             <button
               type="button"
               onClick={() => {
@@ -186,9 +224,12 @@ export default function NewPlace({ regions }) {
             >
               네이버에서 찾기
             </button>
+            <p className="text-xs text-gray-500 mt-1">
+              ‘네이버에서 찾기’로 검색 후 항목을 선택하면 이름·주소·지도 링크가 자동으로 채워집니다.
+            </p>
           </div>
 
-          {/* 이미지 업로드 */}
+          {/* 대표 이미지 */}
           <div>
             <label className="block text-sm font-medium mb-1">대표 이미지 *</label>
             <Uploader label="대표 이미지 선택" onUploaded={setCoverImage} />
@@ -251,27 +292,27 @@ export default function NewPlace({ regions }) {
               {results.length === 0 && !loadingSearch && (
                 <p className="text-sm text-gray-500 p-2">검색 결과가 없습니다.</p>
               )}
-              {results.map((it, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => choosePlace(it)}
-                  className="w-full text-left p-3 hover:bg-gray-50"
-                >
-                  <div className="font-medium">{it.title}</div>
-                  <div className="text-xs text-gray-500">{it.category}</div>
-                  <div className="text-sm text-gray-700">
-                    {it.roadAddress || it.address}
-                    {it.telephone ? ` · ${it.telephone}` : ""}
-                  </div>
-                </button>
-              ))}
+              {results.map((it, idx) => {
+                const title = (it.title || "").replace(/<[^>]*>/g, "");
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => choosePlace(it)}
+                    className="w-full text-left p-3 hover:bg-gray-50"
+                  >
+                    <div className="font-medium">{title}</div>
+                    <div className="text-xs text-gray-500">{it.category}</div>
+                    <div className="text-sm text-gray-700">
+                      {it.roadAddress || it.address}
+                      {it.telephone ? ` · ${it.telephone}` : ""}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="mt-3 flex justify-end gap-2">
-              <button
-                className="px-4 py-2 rounded-lg border"
-                onClick={() => setFinderOpen(false)}
-              >
+              <button className="px-4 py-2 rounded-lg border" onClick={() => setFinderOpen(false)}>
                 닫기
               </button>
             </div>
