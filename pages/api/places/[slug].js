@@ -49,3 +49,9 @@ export default async function handler(req, res) {
 
   return res.status(405).end();
 }
+<a
+  href={`/places/${place.slug}/edit`}
+  className="mt-8 inline-block px-4 py-2 rounded-lg border font-semibold hover:bg-gray-50"
+>
+  수정하기
+</a>
