@@ -1,11 +1,9 @@
+/* styles/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 선택: 기본 배경/글꼴 느낌 살짝 */
+/* 선택: 기본 리셋/유틸 조금 */
 html, body, #__next {
   height: 100%;
-}
-body {
-  @apply bg-gradient-to-b from-white to-gray-100 text-gray-900;
 }
