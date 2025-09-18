@@ -1,32 +1,36 @@
 // pages/regions/index.js
-import Link from "next/link";
 import prisma from "../../lib/prisma";
+import Link from "next/link";
 
 export async function getServerSideProps() {
   const regions = await prisma.region.findMany({
     orderBy: { name: "asc" },
-    select: { slug: true, name: true },
   });
   return { props: { regions } };
 }
 
 export default function Regions({ regions }) {
   return (
-    <main className="max-w-3xl mx-auto px-4 py-6">
+    <main className="max-w-3xl mx-auto p-6">
       <h1 className="text-3xl font-extrabold text-emerald-800">지역 선택</h1>
-      <p className="text-gray-500 mt-1">보고 싶은 지역을 선택하세요</p>
+      <p className="text-gray-500 mt-2">보고 싶은 지역을 선택하세요</p>
 
-      <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {/* 비어있을 때 안내 */}
+      {regions.length === 0 && (
+        <div className="mt-10 rounded-xl border p-6 bg-white">
+          <p className="text-gray-600">
+            등록된 지역이 없습니다. (DB에 Region 데이터를 먼저 넣어주세요)
+          </p>
+        </div>
+      )}
+
+      <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 gap-3">
         {regions.map((r) => (
           <Link
-            key={r.slug}
-            href={`/regions/${r.slug}`}
-            className="
-              block rounded-xl border bg-white text-center
-              shadow-sm hover:shadow transition
-              px-3 py-3           /* ✅ 세로 여백 줄임 */
-              text-lg font-semibold text-gray-800
-            "
+            key={r.id}
+            href={`/places/[slug]?region=${r.slug}`}
+            as={`/places/${r.slug}`}
+            className="block rounded-2xl border bg-white px-4 py-6 text-center text-lg font-semibold hover:shadow"
           >
             {r.name}
           </Link>
