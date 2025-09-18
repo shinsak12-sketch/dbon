@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,28 +13,41 @@ model Region {
   id     Int     @id @default(autoincrement())
   name   String
   slug   String  @unique
+
   places Place[]
 }
 
 model Place {
-  id           Int      @id @default(autoincrement())
-  name         String
-  slug         String   @unique
-  region       Region   @relation(fields: [regionId], references: [id])
-  regionId     Int
-  avgRating    Float    @default(0)
-  reviewsCount Int      @default(0)
-  reviews      Review[]
+  id            Int      @id @default(autoincrement())
+  name          String
+  slug          String   @unique
+
+  region        Region   @relation(fields: [regionId], references: [id])
+  regionId      Int
+
+  avgRating     Float    @default(0)
+  reviewsCount  Int      @default(0)
+
+  // 선택 정보
+  address       String?
+  mapUrl        String?
+  coverImage    String?   // 대표 이미지 URL
+
+  reviews       Review[]
 }
 
 model Review {
   id        Int      @id @default(autoincrement())
   place     Place    @relation(fields: [placeId], references: [id])
   placeId   Int
+
   rating    Float
   content   String
+
+  // 선택 필드
   author    String?     // 닉네임
-  imageUrl  String?     // 이미지 URL
-  pin       String?     // 수정/삭제용 비밀번호
+  imageUrl  String?     // 리뷰 이미지 URL
+  pin       String?     // 수정/삭제용 비밀번호(간단 보호)
+
   createdAt DateTime @default(now())
 }
