@@ -4,7 +4,9 @@ import prisma from "../../lib/prisma";
 export async function getServerSideProps({ params }) {
   const place = await prisma.place.findUnique({
     where: { slug: params.slug },
-    include: { reviews: { orderBy: { createdAt: "desc" } } }
+    include: {
+      reviews: { orderBy: { createdAt: "desc" } }, // 리뷰 최신순
+    },
   });
   if (!place) return { notFound: true };
   return { props: { place } };
@@ -19,15 +21,24 @@ export default function PlaceDetail({ place }) {
         <span className="text-yellow-500 font-bold text-lg">
           ★ {place.avgRating.toFixed(1)}
         </span>
-        <span className="text-gray-500 text-sm">
-          리뷰 {place.reviewsCount}개
-        </span>
+        <span className="text-gray-500 text-sm">리뷰 {place.reviewsCount}개</span>
       </div>
 
+      {/* ✅ 대표 이미지 */}
+      {place.coverImage && (
+        <div className="mt-4">
+          <img
+            src={place.coverImage}
+            alt={place.name}
+            className="w-full rounded-xl border"
+          />
+        </div>
+      )}
+
       {/* 주소 / 지도 링크 */}
-      {place.address && (
+      {(place.address || place.mapUrl) && (
         <div className="mt-6">
-          <p className="text-gray-700">📍 {place.address}</p>
+          {place.address && <p className="text-gray-700">📍 {place.address}</p>}
           {place.mapUrl && (
             <a
               href={place.mapUrl}
@@ -51,10 +62,7 @@ export default function PlaceDetail({ place }) {
         )}
         <div className="mt-4 space-y-4">
           {place.reviews.map((r) => (
-            <div
-              key={r.id}
-              className="p-4 bg-white rounded-xl border shadow"
-            >
+            <div key={r.id} className="p-4 bg-white rounded-xl border shadow">
               <div className="flex items-center justify-between">
                 <span className="text-yellow-500">★ {r.rating}</span>
                 <span className="text-xs text-gray-400">
@@ -67,7 +75,7 @@ export default function PlaceDetail({ place }) {
                 <p className="text-sm text-gray-500 mt-1">— {r.author}</p>
               )}
 
-              {/* 이미지 */}
+              {/* 리뷰 이미지 */}
               {r.imageUrl && (
                 <div className="mt-2">
                   <img
@@ -79,9 +87,9 @@ export default function PlaceDetail({ place }) {
               )}
 
               {/* 내용 */}
-              <p className="mt-2 text-gray-700">{r.content}</p>
+              <p className="mt-2 text-gray-700 whitespace-pre-line">{r.content}</p>
 
-              {/* 수정/삭제 */}
+              {/* 수정/삭제 링크 (라우트는 나중에 구현 예정이면 숨겨도 됨) */}
               <div className="mt-3 flex gap-3 text-sm">
                 <a
                   href={`/reviews/${r.id}/edit`}
