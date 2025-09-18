@@ -1,7 +1,6 @@
-// pages/places/[slug]/review.js
 import { useState } from "react";
 
-/** ★ 클릭형 별점 컴포넌트 */
+/** ★ 클릭형 별점 */
 function StarRating({ value, onChange }) {
   return (
     <div className="flex gap-1 text-2xl">
@@ -26,35 +25,26 @@ function StarRating({ value, onChange }) {
 export default function ReviewForm({ slug }) {
   const [rating, setRating] = useState(5);
   const [content, setContent] = useState("");
+  const [author, setAuthor] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e) {
     e.preventDefault();
-    if (!rating || rating < 1 || rating > 5) {
-      alert("별점은 1~5 사이로 선택해주세요.");
-      return;
-    }
-    if (!content.trim()) {
-      alert("리뷰 내용을 입력해주세요.");
-      return;
-    }
+    if (!content.trim()) return alert("리뷰 내용을 입력해주세요.");
+    if (!author.trim()) return alert("닉네임을 입력해주세요.");
+    if (!pin.trim()) return alert("비밀번호를 입력해주세요.");
     setLoading(true);
     try {
       const res = await fetch("/api/reviews", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, rating, content })
+        body: JSON.stringify({ slug, rating, content, author, imageUrl, pin })
       });
       const data = await res.json();
-      if (res.ok) {
-        // 작성 후 상세 페이지로
-        window.location.href = `/places/${slug}`;
-      } else {
-        alert(data.error || "등록 실패");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("네트워크 오류가 발생했어요.");
+      if (res.ok) window.location.href = `/places/${slug}`;
+      else alert(data.error || "등록 실패");
     } finally {
       setLoading(false);
     }
@@ -71,36 +61,33 @@ export default function ReviewForm({ slug }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">리뷰 내용</label>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="w-full border rounded-lg p-3"
-            rows={5}
-            placeholder="맛/서비스/분위기 등 자유롭게 적어주세요"
-            required
-          />
+          <label className="block text-sm font-medium mb-1">닉네임</label>
+          <input className="w-full border rounded-lg p-3" value={author} onChange={e=>setAuthor(e.target.value)} required />
         </div>
 
-        <button
-          disabled={loading}
-          className={`w-full py-3 rounded-lg text-white font-semibold ${
-            loading ? "bg-gray-400" : "bg-emerald-700 hover:bg-emerald-800"
-          }`}
-        >
+        <div>
+          <label className="block text-sm font-medium mb-1">이미지 URL (선택)</label>
+          <input className="w-full border rounded-lg p-3" value={imageUrl} onChange={e=>setImageUrl(e.target.value)} placeholder="https://..." />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">비밀번호(수정/삭제용)</label>
+          <input className="w-full border rounded-lg p-3" type="password" value={pin} onChange={e=>setPin(e.target.value)} required />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">리뷰 내용</label>
+          <textarea className="w-full border rounded-lg p-3" rows={5} value={content} onChange={e=>setContent(e.target.value)} required />
+        </div>
+
+        <button disabled={loading} className={`w-full py-3 rounded-lg text-white font-semibold ${loading ? "bg-gray-400" : "bg-emerald-700 hover:bg-emerald-800"}`}>
           {loading ? "등록 중..." : "등록"}
         </button>
       </form>
-
-      <div className="mt-6 text-center">
-        <a href={`/places/${slug}`} className="text-sm text-gray-500 underline">
-          ← 상세 페이지로 돌아가기
-        </a>
-      </div>
     </main>
   );
 }
 
 export async function getServerSideProps({ params }) {
   return { props: { slug: params.slug } };
-    }
+          }
