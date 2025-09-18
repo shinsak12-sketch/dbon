@@ -31,5 +31,8 @@ model Review {
   placeId   Int
   rating    Float
   content   String
+  author    String?     // 닉네임
+  imageUrl  String?     // 이미지 URL
+  pin       String?     // 수정/삭제용 비밀번호
   createdAt DateTime @default(now())
 }
