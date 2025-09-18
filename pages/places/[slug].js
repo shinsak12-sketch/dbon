@@ -24,6 +24,23 @@ export default function PlaceDetail({ place }) {
         </span>
       </div>
 
+      {/* 주소 / 지도 링크 */}
+      {place.address && (
+        <div className="mt-6">
+          <p className="text-gray-700">📍 {place.address}</p>
+          {place.mapUrl && (
+            <a
+              href={place.mapUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-700 underline text-sm"
+            >
+              지도에서 보기
+            </a>
+          )}
+        </div>
+      )}
+
       {/* 리뷰 섹션 */}
       <div className="mt-8">
         <h2 className="text-xl font-semibold">리뷰</h2>
@@ -95,4 +112,4 @@ export default function PlaceDetail({ place }) {
       </div>
     </main>
   );
-                  }
+}
