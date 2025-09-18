@@ -18,22 +18,26 @@ model Region {
 }
 
 model Place {
-  id            Int      @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
   name          String
-  slug          String   @unique
-
-  region        Region   @relation(fields: [regionId], references: [id])
+  slug          String    @unique
+  region        Region    @relation(fields: [regionId], references: [id])
   regionId      Int
+  avgRating     Float     @default(0)
+  reviewsCount  Int       @default(0)
+  reviews       Review[]
 
-  avgRating     Float    @default(0)
-  reviewsCount  Int      @default(0)
-
-  // 선택 정보
   address       String?
   mapUrl        String?
-  coverImage    String?   // 대표 이미지 URL
+  coverImage    String?
 
-  reviews       Review[]
+  // 새로 추가할 부분
+  description   String?    @db.Text   // 소개글
+  author        String?               // 작성자 이름
+  ownerPassHash String?               // 수정/삭제용 비밀번호 해시
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model Review {
