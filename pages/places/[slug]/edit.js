@@ -23,23 +23,23 @@ export default function PlaceEdit() {
     if (!slug) return;
     (async () => {
       try {
-        // 단건 조회 (slug로)
         const r = await fetch(`/api/places/${slug}`);
         const data = await r.json();
-        if (r.ok) {
-          setPlace(data);
-          setForm((prev) => ({
-            ...prev,
-            name: data.name || "",
-            description: data.description || "",
-            author: data.author || "",
-            address: data.address || "",
-            mapUrl: data.mapUrl || "",
-            coverImage: data.coverImage || "",
-          }));
-        } else {
-          alert(data.error || "로드 실패");
+        if (!r.ok) {
+          alert(data?.error || "로드 실패");
+          setLoading(false);
+          return;
         }
+        setPlace(data);
+        setForm((prev) => ({
+          ...prev,
+          name: data.name || "",
+          description: data.description || "",
+          author: data.author || "",
+          address: data.address || "",
+          mapUrl: data.mapUrl || "",
+          coverImage: data.coverImage || "",
+        }));
       } catch (e) {
         console.error(e);
         alert("네트워크 오류");
@@ -60,7 +60,7 @@ export default function PlaceEdit() {
       });
       const data = await r.json();
       if (!r.ok) {
-        alert(data.error || "수정 실패");
+        alert(data?.error || "수정 실패");
         return;
       }
       alert("수정 완료");
@@ -74,6 +74,7 @@ export default function PlaceEdit() {
   const onDelete = async () => {
     const password = prompt("삭제 비밀번호를 입력하세요");
     if (!password) return;
+
     try {
       const r = await fetch(`/api/places/${slug}`, {
         method: "DELETE",
@@ -82,7 +83,7 @@ export default function PlaceEdit() {
       });
       const data = await r.json();
       if (!r.ok) {
-        alert(data.error || "삭제 실패");
+        alert(data?.error || "삭제 실패");
         return;
       }
       alert("삭제 완료");
@@ -103,7 +104,12 @@ export default function PlaceEdit() {
       <div className="mt-4 space-y-4">
         <div>
           <label className="block text-sm font-medium">가게명</label>
-          <input name="name" value={form.name} onChange={onChange} className="mt-1 w-full border rounded-lg p-3" />
+          <input
+            name="name"
+            value={form.name}
+            onChange={onChange}
+            className="mt-1 w-full border rounded-lg p-3"
+          />
         </div>
 
         <div>
@@ -119,17 +125,32 @@ export default function PlaceEdit() {
 
         <div>
           <label className="block text-sm font-medium">작성자</label>
-          <input name="author" value={form.author} onChange={onChange} className="mt-1 w-full border rounded-lg p-3" />
+          <input
+            name="author"
+            value={form.author}
+            onChange={onChange}
+            className="mt-1 w-full border rounded-lg p-3"
+          />
         </div>
 
         <div>
           <label className="block text-sm font-medium">주소</label>
-          <input name="address" value={form.address} onChange={onChange} className="mt-1 w-full border rounded-lg p-3" />
+          <input
+            name="address"
+            value={form.address}
+            onChange={onChange}
+            className="mt-1 w-full border rounded-lg p-3"
+          />
         </div>
 
         <div>
           <label className="block text-sm font-medium">네이버 지도 링크</label>
-          <input name="mapUrl" value={form.mapUrl} onChange={onChange} className="mt-1 w-full border rounded-lg p-3" />
+          <input
+            name="mapUrl"
+            value={form.mapUrl}
+            onChange={onChange}
+            className="mt-1 w-full border rounded-lg p-3"
+          />
         </div>
 
         <div>
@@ -164,7 +185,10 @@ export default function PlaceEdit() {
           >
             저장
           </button>
-          <button onClick={onDelete} className="px-4 py-3 rounded-lg bg-red-600 text-white font-semibold">
+          <button
+            onClick={onDelete}
+            className="px-4 py-3 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700"
+          >
             삭제
           </button>
         </div>
