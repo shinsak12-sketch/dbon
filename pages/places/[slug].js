@@ -41,11 +41,11 @@ export default function PlaceDetail({ place }) {
 
       <div className="mt-10">
         <a
-          href={`/places/${place.slug}/review`}
-          className="px-6 py-3 rounded-xl bg-emerald-700 text-white font-semibold hover:bg-emerald-800"
-        >
-          리뷰 작성하기
-        </a>
+  href={`/places/${place.slug}/review`}
+  className="px-6 py-3 rounded-xl bg-emerald-700 text-white font-semibold hover:bg-emerald-800"
+>
+  리뷰 작성하기
+</a>
       </div>
     </main>
   );
