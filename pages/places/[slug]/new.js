@@ -57,14 +57,10 @@ export default function NewPlace({ region }) {
   const debounceRef = useRef(null);
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
-
-  // 업로더 콜백
   const onUploaded = (url) => setForm((f) => ({ ...f, coverImage: url || "" }));
-
-  // 네이버에서 찾기: 검색창 토글
   const toggleSearch = () => setSearchOpen((v) => !v);
 
-  // 🔎 디바운스 검색: 타이핑 후 350ms 지나면 검색
+  // 🔎 디바운스 검색
   useEffect(() => {
     if (!searchOpen) return;
     const q = (query || form.name || "").trim();
@@ -88,23 +84,15 @@ export default function NewPlace({ region }) {
     return () => debounceRef.current && clearTimeout(debounceRef.current);
   }, [query, form.name, searchOpen]);
 
-  // 검색 결과 선택 → 가게명/주소/지도링크 자동 채움
   const selectPlace = (item) => {
     const title = String(item.title || "").replace(/<[^>]+>/g, "");
     const address = item.roadAddress || item.address || "";
     const mapUrl = title ? `https://map.naver.com/v5/search/${encodeURIComponent(title)}` : "";
-
-    setForm((f) => ({
-      ...f,
-      name: title || f.name,
-      address: address || f.address,
-      mapUrl: mapUrl || f.mapUrl,
-    }));
+    setForm((f) => ({ ...f, name: title || f.name, address: address || f.address, mapUrl: mapUrl || f.mapUrl }));
     setResults([]);
     setSearchOpen(false);
   };
 
-  // 제출
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) {
@@ -113,7 +101,7 @@ export default function NewPlace({ region }) {
       return;
     }
     if (!form.coverImage.trim()) {
-      alert("대표 이미지 URL을 입력하거나 업로드해 주세요.");
+      alert("이미지를 첨부해 주세요.");
       return;
     }
     if (!agree) {
@@ -126,10 +114,7 @@ export default function NewPlace({ region }) {
       const r = await fetch("/api/places", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          regionSlug: region.slug,
-          ...form,
-        }),
+        body: JSON.stringify({ regionSlug: region.slug, ...form }),
       });
       const data = await r.json();
       if (!r.ok) {
@@ -162,23 +147,14 @@ export default function NewPlace({ region }) {
             name="name"
             value={form.name}
             onChange={onChange}
-            onInput={(e) => setQuery(e.currentTarget.value)} // 타이핑 → 검색어에도 반영
+            onInput={(e) => setQuery(e.currentTarget.value)}
             placeholder="예) 부대찌개대사관"
             aria-label="가게명"
           />
         </div>
 
-        {/* 지역(고정 표시) */}
-        <div className="mt-6 space-y-2">
-          <Label required>지역</Label>
-          <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-700">
-            {region.name} <span className="text-gray-400">({region.slug})</span>
-          </div>
-          <p className="text-xs text-gray-400">선택한 지역에 등록됩니다.</p>
-        </div>
-
-        {/* 네이버에서 찾기: 토글 + 자동검색 + 드롭다운 */}
-        <div className="mt-6">
+        {/* ✅ 가게명 바로 아래: 네이버에서 찾기 + 자동검색 드롭다운 */}
+        <div className="mt-3">
           <button
             type="button"
             onClick={toggleSearch}
@@ -190,13 +166,10 @@ export default function NewPlace({ region }) {
           {searchOpen && (
             <div className="mt-3 rounded-xl border p-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">
-                  가게명을 타이핑하면 자동으로 검색됩니다.
-                </span>
+                <span className="text-sm text-gray-600">가게명을 타이핑하면 자동으로 검색됩니다.</span>
                 {searching && <span className="text-xs text-gray-400">검색 중…</span>}
               </div>
 
-              {/* 드롭다운 결과 */}
               {results.length > 0 && (
                 <ul className="mt-3 divide-y rounded-xl border">
                   {results.map((item, idx) => {
@@ -208,14 +181,8 @@ export default function NewPlace({ region }) {
                         onClick={() => selectPlace(item)}
                       >
                         <div className="font-semibold">{title}</div>
-                        <div className="text-sm text-gray-600">
-                          {item.roadAddress || item.address}
-                        </div>
-                        {item.category && (
-                          <div className="text-xs text-gray-400 mt-0.5">
-                            {item.category}
-                          </div>
-                        )}
+                        <div className="text-sm text-gray-600">{item.roadAddress || item.address}</div>
+                        {item.category && <div className="mt-0.5 text-xs text-gray-400">{item.category}</div>}
                       </li>
                     );
                   })}
@@ -228,7 +195,16 @@ export default function NewPlace({ region }) {
           )}
         </div>
 
-        {/* 주소/지도 링크 */}
+        {/* 지역(고정 표시) */}
+        <div className="mt-6 space-y-2">
+          <Label required>지역</Label>
+          <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            {region.name} <span className="text-gray-400">({region.slug})</span>
+          </div>
+          <p className="text-xs text-gray-400">선택한 지역에 등록됩니다.</p>
+        </div>
+
+        {/* 주소/지도 링크 (위치 변경 없음) */}
         <div className="mt-6 space-y-2">
           <Label>주소</Label>
           <TextInput
@@ -248,11 +224,11 @@ export default function NewPlace({ region }) {
           />
         </div>
 
-        {/* 대표 이미지 (업로더 + URL 입력) */}
+        {/* 이미지 첨부 (라벨/버튼 문구 변경) */}
         <div className="mt-6">
-          <Label required>대표 이미지</Label>
+          <Label required>이미지 첨부</Label>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Uploader onUploaded={onUploaded} />
+            <Uploader onUploaded={onUploaded} label="이미지 선택" />
             <span className="text-xs text-gray-500">
               이미지를 선택하면 자동 업로드됩니다. (또는 아래 URL 직접 입력)
             </span>
@@ -262,7 +238,7 @@ export default function NewPlace({ region }) {
             value={form.coverImage}
             onChange={onChange}
             placeholder="https://…"
-            aria-label="대표 이미지 URL"
+            aria-label="이미지 URL"
             className="mt-2"
           />
           {form.coverImage && (
@@ -336,10 +312,7 @@ export default function NewPlace({ region }) {
             >
               {submitting ? "등록 중…" : "등록"}
             </button>
-            <Link
-              href={`/places/${region.slug}`}
-              className="rounded-xl border px-4 py-3 font-semibold hover:bg-gray-50"
-            >
+            <Link href={`/places/${region.slug}`} className="rounded-xl border px-4 py-3 font-semibold hover:bg-gray-50">
               취소
             </Link>
           </div>
@@ -347,4 +320,4 @@ export default function NewPlace({ region }) {
       </form>
     </main>
   );
-          }
+        }
