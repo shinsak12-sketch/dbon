@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     const r = await fetch(
       `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(
         query
-      )}&display=5&sort=random`,
+      )}&display=7&sort=random`,
       {
         headers: {
           "X-Naver-Client-Id": process.env.NAVER_CLIENT_ID || "",
@@ -25,7 +25,6 @@ export default async function handler(req, res) {
     }
 
     const data = await r.json();
-    // 결과 배열만 반환
     return res.status(200).json(Array.isArray(data.items) ? data.items : []);
   } catch (e) {
     console.error(e);
