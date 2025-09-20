@@ -1,3 +1,4 @@
+// pages/places/[slug]/index.js
 import prisma from "../../../lib/prisma";
 import Link from "next/link";
 
@@ -21,7 +22,7 @@ export default function RegionPlaces({ region }) {
         {region.name} 맛집
       </h1>
 
-      {/* ✅ 여기 버튼 추가 */}
+      {/* ✅ 맛집 등록하기 버튼 */}
       <div className="mb-6">
         <Link
           href={`/places/${region.slug}/new`}
@@ -36,8 +37,16 @@ export default function RegionPlaces({ region }) {
       ) : (
         <ul className="space-y-3">
           {region.places.map((place) => (
-            <li key={place.id} className="border p-3 rounded">
-              {place.name}
+            <li key={place.id} className="border p-3 rounded hover:shadow">
+              <Link
+                href={`/places/${place.slug}`}
+                className="font-medium text-emerald-700 hover:underline"
+              >
+                {place.name}
+              </Link>
+              {place.address && (
+                <p className="text-sm text-gray-500">{place.address}</p>
+              )}
             </li>
           ))}
         </ul>
