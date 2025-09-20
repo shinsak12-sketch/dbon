@@ -1,59 +1,107 @@
 // components/Uploader.js
 import { useRef, useState } from "react";
 
-export default function Uploader({ onUploaded, label = "이미지 업로드", defaultUrl = "" }) {
+export default function Uploader({
+  label = "대표 이미지 선택",
+  defaultUrl = "",
+  maxSizeMB = 8,
+  onUploaded, // (url: string) => void
+}) {
   const [preview, setPreview] = useState(defaultUrl);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const inputRef = useRef(null);
 
+  const openPicker = () => inputRef.current?.click();
+
+  const handleChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 간단한 용량/타입 검증
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      setError(`이미지 용량은 최대 ${maxSizeMB}MB까지 가능합니다.`);
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setError("이미지 파일만 업로드할 수 있어요.");
+      return;
+    }
+    setError("");
+    upload(file);
+  };
+
   async function upload(file) {
-    const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    const preset = process.env.NEXT_PUBLIC_CLOUDINARY_PRESET;
-    if (!cloud || !preset) return alert("Cloudinary 환경변수가 없습니다.");
-
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("upload_preset", preset);
-
     setLoading(true);
+    setError("");
+
     try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, {
+      const fd = new FormData();
+      fd.append("file", file);
+
+      const res = await fetch("/api/upload-cloudinary", {
         method: "POST",
-        body: fd
+        body: fd,
       });
-      const data = await res.json();
-      if (data.secure_url) {
-        setPreview(data.secure_url);
-        onUploaded?.(data.secure_url);
-      } else {
-        console.error(data);
-        alert("업로드 실패");
+
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || "업로드 실패");
       }
-    } catch (e) {
-      console.error(e);
-      alert("업로드 오류");
+
+      const data = await res.json();
+      if (!data.secure_url) {
+        throw new Error("업로드 응답에 URL이 없습니다.");
+      }
+
+      setPreview(data.secure_url);
+      onUploaded?.(data.secure_url);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "업로드 중 오류가 발생했어요.");
     } finally {
       setLoading(false);
     }
   }
 
-  function onChange(e) {
-    const file = e.target.files?.[0];
-    if (file) upload(file);
-  }
-
   return (
     <div className="space-y-2">
-      {preview && <img src={preview} alt="preview" className="w-full rounded-lg border" />}
+      {/* 미리보기 */}
+      {preview && (
+        <img
+          src={preview}
+          alt="preview"
+          className="w-full rounded-xl border object-cover"
+        />
+      )}
+
+      {/* 업로드 버튼 */}
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
+        onClick={openPicker}
         disabled={loading}
-        className={`px-4 py-2 rounded-lg text-white font-semibold ${loading ? "bg-gray-400" : "bg-emerald-700 hover:bg-emerald-800"}`}
+        className={`w-full rounded-xl px-4 py-3 font-semibold text-white transition
+          ${loading ? "bg-gray-400" : "bg-emerald-700 hover:bg-emerald-800"}`}
       >
         {loading ? "업로드 중..." : label}
       </button>
-      <input ref={inputRef} type="file" accept="image/*" onChange={onChange} className="hidden" />
+
+      {/* 파일 입력 */}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleChange}
+      />
+
+      {/* 에러 메시지 */}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {/* 안내 */}
+      <p className="text-xs text-gray-500">
+        {`이미지 파일(최대 ${maxSizeMB}MB)을 업로드합니다.`}
+      </p>
     </div>
   );
 }
