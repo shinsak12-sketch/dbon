@@ -6,9 +6,10 @@ export async function getServerSideProps({ params }) {
   const region = await prisma.region.findUnique({
     where: { slug: params.slug },
     include: {
-      places: { orderBy: { name: "asc" } }, // 지역의 맛집 목록
+      places: { orderBy: { name: "asc" } }, // 이 지역의 가게 목록
     },
   });
+
   if (!region) return { notFound: true };
   return { props: { region } };
 }
@@ -29,7 +30,9 @@ export default function RegionDetail({ region }) {
               <Link href={`/places/${p.slug}`} className="font-semibold">
                 {p.name}
               </Link>
-              {/* 필요하면 주소/평점 등 추가 */}
+              {p.address && (
+                <div className="text-sm text-gray-500 mt-1">{p.address}</div>
+              )}
             </li>
           ))}
         </ul>
