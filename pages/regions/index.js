@@ -15,7 +15,6 @@ export default function Regions({ regions }) {
       <h1 className="text-3xl font-extrabold text-emerald-800">지역 선택</h1>
       <p className="text-gray-500 mt-2">보고 싶은 지역을 선택하세요</p>
 
-      {/* 비어있을 때 안내 */}
       {regions.length === 0 && (
         <div className="mt-10 rounded-xl border p-6 bg-white">
           <p className="text-gray-600">
@@ -28,8 +27,7 @@ export default function Regions({ regions }) {
         {regions.map((r) => (
           <Link
             key={r.id}
-            href={`/places/[slug]?region=${r.slug}`}
-            as={`/places/${r.slug}`}
+            href={`/regions/${r.slug}`}   // ✅ 지역 상세 페이지로 이동
             className="block rounded-2xl border bg-white px-4 py-6 text-center text-lg font-semibold hover:shadow"
           >
             {r.name}
