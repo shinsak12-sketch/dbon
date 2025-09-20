@@ -2,15 +2,14 @@
 import prisma from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
 
-// 간단 슬러그 생성기
-function slugify(str = "") {
-  return str
-    .toString()
+function slugifyBase(s) {
+  return String(s || "")
     .trim()
     .toLowerCase()
-    .replace(/[^\w\-가-힣]/g, " ")
-    .replace(/\s+/g, "-")
-    .replace(/\-+/g, "-");
+    // 영문/숫자/한글은 살리고, 나머지는 - 로
+    .replace(/[^\w가-힣]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 export default async function handler(req, res) {
@@ -19,54 +18,58 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
-  const {
-    name,
-    description,
-    author,
-    address,
-    mapUrl,
-    coverImage,
-    password,
-    regionSlug,
-  } = req.body || {};
-
-  if (!name || !regionSlug) {
-    return res.status(400).json({ error: "name과 regionSlug는 필수입니다." });
-  }
-
   try {
-    const region = await prisma.region.findUnique({
-      where: { slug: regionSlug },
-    });
-    if (!region) return res.status(404).json({ error: "Region not found" });
+    const {
+      name,
+      regionSlug,           // URL의 [slug] 그대로 넘김
+      description,
+      author,
+      address,
+      mapUrl,
+      coverImage,
+      ownerPass,            // 수정/삭제용 평문 비번
+    } = req.body || {};
 
-    // 슬러그 유니크 보장
-    let base = slugify(name);
-    if (!base) base = `place-${Date.now()}`;
-    let unique = base;
-    let i = 1;
-    while (await prisma.place.findUnique({ where: { slug: unique } })) {
-      unique = `${base}-${i++}`;
+    if (!name || !regionSlug || !coverImage) {
+      return res.status(400).json({ error: "REQUIRED_MISSING" });
     }
 
-    const ownerPassHash = password ? await bcrypt.hash(password, 10) : null;
+    const region = await prisma.region.findUnique({
+      where: { slug: String(regionSlug) },
+    });
+    if (!region) return res.status(400).json({ error: "INVALID_REGION" });
 
-    const created = await prisma.place.create({
+    // 비번 해시
+    let ownerPassHash = null;
+    if (ownerPass && String(ownerPass).trim()) {
+      ownerPassHash = await bcrypt.hash(String(ownerPass).trim(), 10);
+    }
+
+    // 고유 slug 생성 (지역-slug + 가게명 기반 중복 회피)
+    const base = slugifyBase(name) || "place";
+    let slug = `${region.slug}-${base}`.slice(0, 80);
+    let n = 0;
+    // 중복이면 -2, -3 … 붙여서 유니크 보장
+    while (await prisma.place.findUnique({ where: { slug } })) {
+      n += 1;
+      slug = `${region.slug}-${base}-${n}`;
+    }
+
+    const place = await prisma.place.create({
       data: {
         name,
-        slug: unique,
+        slug,
         regionId: region.id,
         description: description || null,
         author: author || null,
         address: address || null,
         mapUrl: mapUrl || null,
-        coverImage: coverImage || null,
+        coverImage,
         ownerPassHash,
       },
-      select: { id: true, slug: true },
     });
 
-    return res.status(201).json(created);
+    return res.status(201).json({ ok: true, place });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Server Error" });
