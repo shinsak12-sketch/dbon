@@ -1,6 +1,11 @@
+// components/Uploader.js
 import { useRef, useState } from "react";
 
-export default function Uploader({ onUploaded, label = "이미지 선택", defaultUrl = "" }) {
+export default function Uploader({
+  onUploaded,
+  label = "이미지 선택",
+  defaultUrl = "",
+}) {
   const [preview, setPreview] = useState(defaultUrl);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
@@ -11,16 +16,14 @@ export default function Uploader({ onUploaded, label = "이미지 선택", defau
 
     setLoading(true);
     try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: fd,
-      });
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await res.json();
-      if (data.url) {
+      if (res.ok && data?.url) {
         setPreview(data.url);
         onUploaded?.(data.url);
       } else {
-        alert("업로드 실패");
+        console.error(data);
+        alert(data?.error || "업로드 실패");
       }
     } catch (e) {
       console.error(e);
@@ -37,7 +40,9 @@ export default function Uploader({ onUploaded, label = "이미지 선택", defau
 
   return (
     <div className="space-y-2">
-      {preview && <img src={preview} alt="preview" className="w-full rounded-lg border" />}
+      {preview && (
+        <img src={preview} alt="preview" className="w-full rounded-lg border" />
+      )}
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -48,7 +53,13 @@ export default function Uploader({ onUploaded, label = "이미지 선택", defau
       >
         {loading ? "업로드 중..." : label}
       </button>
-      <input ref={inputRef} type="file" accept="image/*" onChange={onChange} className="hidden" />
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        onChange={onChange}
+        className="hidden"
+      />
     </div>
   );
 }
