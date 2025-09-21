@@ -339,4 +339,4 @@ export default function NewPlace({ region }) {
       </form>
     </main>
   );
-                            }
+      }
