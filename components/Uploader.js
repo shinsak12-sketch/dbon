@@ -11,23 +11,52 @@ export default function Uploader({
   const inputRef = useRef(null);
 
   async function upload(file) {
+    const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    const preset = process.env.NEXT_PUBLIC_CLOUDINARY_PRESET;
+
+    if (!cloud || !preset) {
+      alert("Cloudinary 환경변수가 없습니다. (cloudName/preset 확인)");
+      return;
+    }
+
     const fd = new FormData();
     fd.append("file", file);
+    fd.append("upload_preset", preset);
 
     setLoading(true);
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, {
+        method: "POST",
+        body: fd,
+      });
+
+      // 응답 전문 확인용
       const data = await res.json();
-      if (res.ok && data?.url) {
-        setPreview(data.url);
-        onUploaded?.(data.url);
+      console.log("[Cloudinary upload response]", data);
+
+      if (!res.ok || data.error) {
+        const msg =
+          data?.error?.message ||
+          data?.message ||
+          `HTTP ${res.status} 업로드 실패`;
+        alert(`업로드 오류: ${msg}`);
+        return;
+        // 예시 에러 메시지:
+        // - preset not found
+        // - unsigned upload not allowed
+        // - Invalid unsigned upload preset
+        // - File size too large
+      }
+
+      if (data.secure_url) {
+        setPreview(data.secure_url);
+        onUploaded?.(data.secure_url);
       } else {
-        console.error(data);
-        alert(data?.error || "업로드 실패");
+        alert("업로드는 성공했지만 URL을 받지 못했습니다.");
       }
     } catch (e) {
       console.error(e);
-      alert("업로드 오류");
+      alert(`업로드 오류: ${e?.message || e}`);
     } finally {
       setLoading(false);
     }
