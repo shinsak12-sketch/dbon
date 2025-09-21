@@ -1,3 +1,111 @@
+/* Tailwind 레이어 불러오기 */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ====== 기본 리셋/베이스 ====== */
+@layer base {
+  :root {
+    --bg: #f8faf9;          /* 부드러운 배경 */
+    --card: #ffffff;        /* 카드 바탕 */
+    --text: #0f172a;        /* slate-900 */
+    --muted: #6b7280;       /* gray-500 */
+    --ring:  #10b981;       /* brand-500 */
+  }
+
+  html, body, #__next {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-[var(--bg)] text-[var(--text)] antialiased;
+  }
+
+  ::selection {
+    background: rgba(16,185,129,0.22); /* brand-500 */
+  }
+
+  /* 스크롤바(모바일/데스크톱 공용) */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  /* 기본 링크 스타일 */
+  a {
+    @apply text-brand-700 hover:text-brand-600 underline-offset-4 hover:underline;
+  }
+
+  /* 헤딩 약간 튜닝 */
+  h1,h2,h3 {
+    @apply tracking-tight;
+  }
+}
+
+/* ====== 컴포넌트 프리셋 ====== */
+@layer components {
+  /* 카드 */
+  .card {
+    @apply bg-[var(--card)] rounded-2xl border shadow-soft;
+  }
+  .card-body {
+    @apply p-5;
+  }
+
+  /* 인풋/셀렉트/텍스트에어리어 통일 */
+  .input {
+    @apply w-full rounded-xl border bg-white/95 px-3 py-2 text-[var(--text)]
+           placeholder:text-gray-400
+           focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-brand-500;
+  }
+  .textarea {
+    @apply w-full rounded-xl border bg-white/95 p-3
+           focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-brand-500;
+  }
+  .select {
+    @apply input;
+  }
+
+  .label {
+    @apply block text-sm font-semibold text-gray-800;
+  }
+
+  /* 버튼 */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-semibold transition;
+  }
+  .btn-primary {
+    @apply btn text-white bg-brand-700 hover:bg-brand-800 disabled:opacity-60;
+  }
+  .btn-outline {
+    @apply btn border hover:bg-gray-50;
+  }
+  .btn-ghost {
+    @apply btn hover:bg-black/5;
+  }
+
+  /* 뱃지 */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-xs font-medium border border-emerald-100;
+  }
+}
+
+/* ====== 유틸 확장 ====== */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .max-w-prose {
+    max-width: 65ch;
+  }
+}
