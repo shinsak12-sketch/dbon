@@ -2,12 +2,14 @@
 import prisma from "../../../lib/prisma";
 import Link from "next/link";
 
-export async function getServerSideProps(context) {
-  const { slug } = context.params;
-
+export async function getServerSideProps({ params }) {
   const region = await prisma.region.findUnique({
-    where: { slug },
-    include: { places: true },
+    where: { slug: params.slug },
+    include: {
+      places: {
+        orderBy: { createdAt: "desc" }, // 최신 등록순
+      },
+    },
   });
 
   if (!region) return { notFound: true };
@@ -18,12 +20,10 @@ export async function getServerSideProps(context) {
 export default function RegionPlaces({ region }) {
   return (
     <main className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-bold text-emerald-800 mb-4">
-        {region.name} 맛집
-      </h1>
-
-      {/* ✅ 맛집 등록하기 버튼 */}
-      <div className="mb-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-emerald-800">
+          {region.name} 맛집
+        </h1>
         <Link
           href={`/places/${region.slug}/new`}
           className="inline-block rounded-xl bg-emerald-700 text-white px-4 py-2 font-semibold hover:bg-emerald-800"
@@ -33,20 +33,27 @@ export default function RegionPlaces({ region }) {
       </div>
 
       {region.places.length === 0 ? (
-        <p className="text-gray-500">아직 등록된 맛집이 없어요.</p>
+        <p className="mt-6 text-gray-500">아직 등록된 맛집이 없어요.</p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="mt-6 space-y-3">
           {region.places.map((place) => (
-            <li key={place.id} className="border p-3 rounded hover:shadow">
+            <li key={place.id} className="card">
               <Link
-                href={`/places/${place.slug}`}
-                className="font-medium text-emerald-700 hover:underline"
+                href={`/places/${region.slug}/${place.slug}`} // ✅ 두 단계 경로
+                className="block p-4 rounded-2xl hover:bg-gray-50"
               >
-                {place.name}
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">{place.name}</span>
+                  <span className="text-sm text-gray-500">
+                    ★ {(place.avgRating ?? 0).toFixed(1)}
+                  </span>
+                </div>
+                {place.address && (
+                  <div className="mt-1 text-sm text-gray-600">
+                    {place.address}
+                  </div>
+                )}
               </Link>
-              {place.address && (
-                <p className="text-sm text-gray-500">{place.address}</p>
-              )}
             </li>
           ))}
         </ul>
