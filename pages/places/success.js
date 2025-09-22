@@ -1,46 +1,41 @@
 // pages/places/success.js
 import Link from "next/link";
-import { useRouter } from "next/router";
 
-export default function Success() {
-  const { query } = useRouter();
-  // new.js에서 ?slug=<placeSlug> 로 넘겨줌
-  const placeSlug = typeof query.slug === "string" ? query.slug : "";
+export default function SuccessPage({ query }) {
+  const slug = query?.slug || "";
 
   return (
     <main className="mx-auto max-w-md p-8 text-center">
-      <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-        <span className="text-2xl">🎉</span>
-      </div>
-
-      <h1 className="text-2xl font-extrabold text-emerald-700">😋 등록 성공!</h1>
-      <p className="mt-3 text-gray-700">
-        이제 모두가 당신의 찐맛집을 알게 될 거예요.
+      <h1 className="text-3xl font-extrabold text-emerald-700 mb-4">
+        🎉 등록 완료!
+      </h1>
+      <p className="text-gray-700 mb-6">
+        새로운 맛집이 성공적으로 등록되었습니다.
+        <br />
+        이제 다른 사람들도 함께 즐길 수 있어요 😋
       </p>
 
-      <div className="mt-8 flex flex-col gap-3">
-        {/* 목록으로 (지역 선택 화면) */}
-        <Link
-          href="/regions"
-          className="inline-block w-full rounded-xl bg-emerald-700 px-5 py-3 text-center font-semibold text-white hover:bg-emerald-800"
-        >
-          배고파졌다면 목록으로 Go!
-        </Link>
-
-        {/* 내가 올린 집 보러가기: placeSlug가 있을 때만 노출 */}
-        {placeSlug && (
+      <div className="space-y-3">
+        {slug && (
           <Link
-            href={`/places/${placeSlug}`}
-            className="inline-block w-full rounded-xl border px-5 py-3 text-center font-semibold hover:bg-gray-50"
+            href={`/places/${slug}`}
+            className="block rounded-xl bg-emerald-700 text-white px-6 py-3 font-semibold hover:bg-emerald-800"
           >
-            내가 올린 집 보러가기
+            내 등록한 맛집 보기
           </Link>
         )}
+        <Link
+          href="/regions"
+          className="block rounded-xl border px-6 py-3 font-semibold hover:bg-gray-50"
+        >
+          지역 목록으로 돌아가기
+        </Link>
       </div>
-
-      <p className="mt-5 text-xs text-gray-500">
-        맛집 제보 감사! 다음 끼니는 제가 책임질게요 🤝
-      </p>
     </main>
   );
+}
+
+// ✅ query를 받기 위해 getServerSideProps 추가
+export async function getServerSideProps({ query }) {
+  return { props: { query } };
 }
