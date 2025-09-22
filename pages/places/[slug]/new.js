@@ -131,8 +131,8 @@ export default function NewPlace({ region }) {
         return;
       }
       alert("등록되었습니다!");
-      router.replace(`/places/${data.place.slug}`);
-    } catch (e) {
+      - router.replace(`/places/${data.place.slug}`);
++ router.replace(`/places/success?slug=${encodeURIComponent(data.place.slug)}`);
       console.error(e);
       alert("네트워크 오류");
     } finally {
