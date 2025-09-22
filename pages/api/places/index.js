@@ -22,13 +22,13 @@ export default async function handler(req, res) {
   try {
     const {
       name,
-      regionSlug,      // /places/[slug]/new 에서 전달됨
+      regionSlug,     // /places/[slug]/new 에서 전달됨
       description,
       author,
       address,
       mapUrl,
-      coverImage,      // 필수
-      ownerPass,       // 선택(수정/삭제용)
+      coverImage,     // ✅ 선택 사항 (없어도 됨)
+      ownerPass,      // 선택(수정/삭제용)
     } = req.body || {};
 
     // 필수값 체크
@@ -38,9 +38,7 @@ export default async function handler(req, res) {
     if (!regionSlug || !String(regionSlug).trim()) {
       return res.status(400).json({ error: "REGION_REQUIRED" });
     }
-    if (!coverImage || !String(coverImage).trim()) {
-      return res.status(400).json({ error: "COVER_IMAGE_REQUIRED" });
-    }
+    // ✅ coverImage 필수 검사 제거
 
     // 지역 확인
     const region = await prisma.region.findUnique({
@@ -74,7 +72,11 @@ export default async function handler(req, res) {
         author: author ? String(author) : null,
         address: address ? String(address) : null,
         mapUrl: mapUrl ? String(mapUrl) : null,
-        coverImage: String(coverImage).trim(),
+        // ✅ 이미지가 없으면 null 저장 (Prisma 스키마에서 String? 이어야 함)
+        coverImage:
+          coverImage && String(coverImage).trim()
+            ? String(coverImage).trim()
+            : null,
         ownerPassHash,
         // avgRating, reviewsCount 는 기본값 0
       },
