@@ -103,42 +103,45 @@ export default function NewPlace({ region }) {
   };
 
   // 제출
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.name.trim()) {
-      alert("가게명을 입력해 주세요.");
-      nameRef.current?.focus();
-      return;
-    }
-    if (!agree) {
-      alert("안내에 동의해 주세요.");
+const onSubmit = async (e) => {
+  e.preventDefault();
+
+  if (!form.name.trim()) {
+    alert("가게명을 입력해 주세요.");
+    nameRef.current?.focus();
+    return;
+  }
+  if (!agree) {
+    alert("안내에 동의해 주세요.");
+    return;
+  }
+
+  setSubmitting(true);
+  try {
+    const r = await fetch("/api/places", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        regionSlug: region.slug,
+        ...form, // coverImage는 선택사항
+      }),
+    });
+
+    const data = await r.json();
+    if (!r.ok) {
+      alert(data?.error || "등록 실패");
       return;
     }
 
-    setSubmitting(true);
-    try {
-      const r = await fetch("/api/places", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          regionSlug: region.slug,
-          ...form, // coverImage는 선택사항(없어도 전송)
-        }),
-      });
-      const data = await r.json();
-      if (!r.ok) {
-        alert(data?.error || "등록 실패");
-        return;
-      }
-      alert("등록되었습니다!");
-      - router.replace(`/places/${data.place.slug}`);
-+ router.replace(`/places/success?slug=${encodeURIComponent(data.place.slug)}`);
-      console.error(e);
-      alert("네트워크 오류");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    // ✅ 알림 없이 성공 페이지로 이동
+    router.replace(`/places/success?slug=${encodeURIComponent(data.place.slug)}`);
+  } catch (e) {
+    console.error(e);
+    alert("네트워크 오류");
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   return (
     <main className="mx-auto max-w-2xl p-6">
