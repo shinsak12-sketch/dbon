@@ -35,7 +35,7 @@ export default function NewPlace({ region }) {
     name: "",
     address: "",
     mapUrl: "",
-    coverImage: "",
+    coverImage: "",     // 선택 사항
     description: "",
     author: "",
     ownerPass: "",
@@ -57,7 +57,11 @@ export default function NewPlace({ region }) {
     }));
 
   // 업로더 콜백
-  const onUploaded = (url) => setForm((f) => ({ ...f, coverImage: url || "" }));
+  const onUploaded = (url) =>
+    setForm((f) => ({
+      ...f,
+      coverImage: url || "",
+    }));
 
   // 네이버에서 찾기 버튼 토글 (가게명 아래)
   const toggleSearch = () => setSearchOpen((v) => !v);
@@ -103,45 +107,45 @@ export default function NewPlace({ region }) {
   };
 
   // 제출
-const onSubmit = async (e) => {
-  e.preventDefault();
+  const onSubmit = async (e) => {
+    e.preventDefault();
 
-  if (!form.name.trim()) {
-    alert("가게명을 입력해 주세요.");
-    nameRef.current?.focus();
-    return;
-  }
-  if (!agree) {
-    alert("안내에 동의해 주세요.");
-    return;
-  }
-
-  setSubmitting(true);
-  try {
-    const r = await fetch("/api/places", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        regionSlug: region.slug,
-        ...form, // coverImage는 선택사항
-      }),
-    });
-
-    const data = await r.json();
-    if (!r.ok) {
-      alert(data?.error || "등록 실패");
+    if (!form.name.trim()) {
+      alert("가게명을 입력해 주세요.");
+      nameRef.current?.focus();
+      return;
+    }
+    if (!agree) {
+      alert("안내에 동의해 주세요.");
       return;
     }
 
-    // ✅ 알림 없이 성공 페이지로 이동
-    router.replace(`/places/success?slug=${encodeURIComponent(data.place.slug)}`);
-  } catch (e) {
-    console.error(e);
-    alert("네트워크 오류");
-  } finally {
-    setSubmitting(false);
-  }
-};
+    setSubmitting(true);
+    try {
+      const r = await fetch("/api/places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          regionSlug: region.slug,
+          ...form, // coverImage는 선택사항
+        }),
+      });
+
+      const data = await r.json();
+      if (!r.ok) {
+        alert(data?.error || "등록 실패");
+        return;
+      }
+
+      // ✅ 알림 없이 성공 페이지로 이동 (place slug 전달)
+      router.replace(`/places/success?slug=${encodeURIComponent(data.place.slug)}`);
+    } catch (e) {
+      console.error(e);
+      alert("네트워크 오류");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <main className="mx-auto max-w-2xl p-6">
@@ -223,7 +227,7 @@ const onSubmit = async (e) => {
           <p className="text-xs text-gray-400">선택한 지역에 등록됩니다.</p>
         </div>
 
-        {/* 주소/지도 링크 (그대로 유지) */}
+        {/* 주소/지도 링크 */}
         <div className="mt-6 space-y-2">
           <Label>주소</Label>
           <TextInput
@@ -244,18 +248,18 @@ const onSubmit = async (e) => {
         </div>
 
         {/* 이미지 첨부 (선택) */}
-<div className="mt-6">
-  <Label>이미지 첨부 (선택)</Label>
-  <div className="mt-2">
-    <Uploader
-      onUploaded={onUploaded}
-      label="이미지 선택"
-      defaultUrl={form.coverImage}
-    />
-  </div>
-  {/* URL 입력칸은 숨기고 값만 폼에 유지 */}
-  <input type="hidden" name="coverImage" value={form.coverImage || ""} />
-</div>
+        <div className="mt-6">
+          <Label>이미지 첨부 (선택)</Label>
+          <div className="mt-2">
+            <Uploader
+              onUploaded={onUploaded}
+              label="이미지 선택"
+              defaultUrl={form.coverImage}
+            />
+          </div>
+          {/* URL 입력칸은 숨기고 값만 폼에 유지 */}
+          <input type="hidden" name="coverImage" value={form.coverImage || ""} />
+        </div>
 
         {/* 소개글 / 작성자 */}
         <div className="mt-6">
@@ -332,4 +336,4 @@ const onSubmit = async (e) => {
       </form>
     </main>
   );
-      }
+}
