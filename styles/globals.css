@@ -1,3 +1,83 @@
+/* Tailwind layers */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ===== Base ===== */
+@layer base {
+  :root {
+    --bg: #f8faf9;     /* page background */
+    --card: #ffffff;   /* card background */
+    --text: #0f172a;   /* slate-900 */
+    --muted: #6b7280;  /* gray-500 */
+    --ring: #10b981;   /* brand-500 (참고용, @apply에 쓰지 않음) */
+  }
+
+  html, body, #__next { height: 100%; }
+
+  body {
+    /* ⛔️ bg-[var(--bg)] 는 @apply 불가 → 일반 CSS로 */
+    background-color: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection { background: rgba(16,185,129,0.22); }
+
+  /* Scrollbar */
+  * { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1; border-radius: 10px;
+    border: 2px solid transparent; background-clip: content-box;
+  }
+
+  a { @apply text-emerald-700 hover:text-emerald-600 underline-offset-4 hover:underline; }
+  h1,h2,h3 { @apply tracking-tight; }
+}
+
+/* ===== Components ===== */
+@layer components {
+  /* Card */
+  .card {
+    /* ⛔️ bg-[var(--card)] 대신 일반 CSS */
+    background-color: var(--card);
+    @apply rounded-2xl border shadow-soft;
+  }
+  .card-body { @apply p-5; }
+
+  /* Inputs */
+  .label { @apply block text-sm font-semibold text-gray-800; }
+
+  .input {
+    @apply w-full rounded-xl border bg-white/95 px-3 py-2 text-slate-900
+           placeholder:text-gray-400
+           focus:outline-none focus:ring-2 focus:border-emerald-500;
+    /* ⛔️ focus:ring-[var(--ring)] 불가 → 정적 색으로 대체 */
+    /* 필요하면 ring 색을 여기서 고정: */
+    --tw-ring-color: #10b981; /* Tailwind ring color 변수 */
+  }
+
+  .textarea {
+    @apply w-full rounded-xl border bg-white/95 p-3
+           focus:outline-none focus:ring-2 focus:border-emerald-500;
+    --tw-ring-color: #10b981;
+  }
+
+  .select { @apply input; }
+
+  /* Buttons */
+  .btn { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-semibold transition; }
+  .btn-primary { @apply btn text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60; }
+  .btn-outline { @apply btn border hover:bg-gray-50; }
+  .btn-ghost { @apply btn hover:bg-black/5; }
+
+  .badge { @apply inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-xs font-medium border border-emerald-100; }
+}
+
+/* ===== Utilities ===== */
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .max-w-prose { max-width: 65ch; }
+}
