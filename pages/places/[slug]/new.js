@@ -241,28 +241,18 @@ export default function NewPlace({ region }) {
         </div>
 
         {/* 이미지 첨부 (선택) */}
-        <div className="mt-6">
-          <Label>이미지 첨부 (선택)</Label>
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Uploader onUploaded={onUploaded} label="이미지 선택" />
-            <span className="text-xs text-gray-500">
-              이미지를 선택하면 자동 업로드됩니다. (또는 아래 URL 직접 입력 가능)
-            </span>
-          </div>
-          <TextInput
-            name="coverImage"
-            value={form.coverImage}
-            onChange={onChange}
-            placeholder="https://…"
-            aria-label="대표 이미지 URL"
-            className="mt-2"
-          />
-          {form.coverImage && (
-            <div className="mt-3">
-              <img src={form.coverImage} alt="미리보기" className="w-full rounded-xl border" />
-            </div>
-          )}
-        </div>
+<div className="mt-6">
+  <Label>이미지 첨부 (선택)</Label>
+  <div className="mt-2">
+    <Uploader
+      onUploaded={onUploaded}
+      label="이미지 선택"
+      defaultUrl={form.coverImage}
+    />
+  </div>
+  {/* URL 입력칸은 숨기고 값만 폼에 유지 */}
+  <input type="hidden" name="coverImage" value={form.coverImage || ""} />
+</div>
 
         {/* 소개글 / 작성자 */}
         <div className="mt-6">
