@@ -1,112 +1,103 @@
 // pages/admin/index.js
 import { useState } from "react";
 
-export default function AdminPage() {
-  const [password, setPassword] = useState("");
-  const [authed, setAuthed] = useState(false);
+const ADMIN_PASS = "dbsonsa"; // 요구한 비밀번호(간단 버전)
+
+export default function Admin() {
+  const [ok, setOk] = useState(false);
+  const [pass, setPass] = useState("");
   const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [lastUrl, setLastUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
 
-  const CORRECT = "dbsonsa";
-
-  const onLogin = (e) => {
-    e.preventDefault();
-    if (password === CORRECT) setAuthed(true);
-    else alert("비밀번호가 올바르지 않습니다.");
-  };
-
-  const onFileChange = (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (!f.type?.startsWith("image/")) {
-      alert("이미지 파일만 업로드할 수 있습니다.");
-      return;
-    }
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
-  };
-
-  const onUpload = async () => {
+  async function handleUpload() {
     if (!file) return alert("이미지를 선택하세요.");
-    setUploading(true);
+    setBusy(true);
+    setMsg("");
+
     try {
-      const fd = new FormData();
-      fd.append("file", file);
+      // 1) 서버에 서명 요청
+      const sigRes = await fetch("/api/admin/cloudinary-sign", { method: "POST" });
+      const sig = await sigRes.json();
+      if (!sigRes.ok) throw new Error(sig?.error || "서명 실패");
 
-      const res = await fetch("/api/admin/background", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "업로드 실패");
+      // 2) Cloudinary로 직접 업로드(덮어쓰기)
+      const form = new FormData();
+      form.append("file", file);
+      form.append("api_key", sig.apiKey);
+      form.append("timestamp", sig.timestamp);
+      form.append("public_id", sig.public_id);
+      form.append("overwrite", "true");
+      form.append("invalidate", "true");
+      form.append("signature", sig.signature);
 
-      setLastUrl(data.secure_url || "");
-      alert("배경 이미지가 변경되었습니다.");
-      setFile(null);
-      setPreview("");
+      const upRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
+        { method: "POST", body: form }
+      );
+      const up = await upRes.json();
+      if (!upRes.ok) throw new Error(up?.error?.message || "업로드 실패");
+
+      setMsg("배경 이미지가 업데이트 되었어요! 새로고침하면 반영됩니다.");
     } catch (e) {
-      alert(e.message);
+      setMsg(e.message || "오류가 발생했습니다.");
     } finally {
-      setUploading(false);
+      setBusy(false);
     }
-  };
+  }
 
-  if (!authed) {
+  if (!ok) {
     return (
-      <main className="h-screen flex items-center justify-center bg-gray-100">
-        <form onSubmit={onLogin} className="bg-white p-6 rounded-xl shadow-md space-y-4 w-80">
-          <h1 className="text-lg font-bold">관리자 로그인</h1>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="비밀번호"
-            className="w-full border rounded-lg p-3"
-          />
-          <button
-            type="submit"
-            className="w-full bg-emerald-700 text-white p-3 rounded-lg font-semibold hover:bg-emerald-800"
-          >
-            로그인
-          </button>
-        </form>
+      <main className="mx-auto max-w-sm p-8">
+        <h1 className="text-2xl font-extrabold mb-4">Admin Login</h1>
+        <input
+          value={pass}
+          onChange={(e) => setPass(e.target.value)}
+          type="password"
+          className="w-full border rounded-lg p-3"
+          placeholder="비밀번호"
+        />
+        <button
+          className="mt-3 w-full rounded-lg bg-emerald-700 text-white py-3 font-semibold"
+          onClick={() => setOk(pass === ADMIN_PASS)}
+        >
+          들어가기
+        </button>
+        {pass && pass !== ADMIN_PASS && (
+          <p className="mt-2 text-sm text-red-600">비밀번호가 올바르지 않습니다.</p>
+        )}
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-10">
-      <h1 className="text-2xl font-bold mb-6">관리자 메뉴</h1>
+    <main className="mx-auto max-w-md p-8">
+      <h1 className="text-2xl font-extrabold mb-4">배경 바꾸기</h1>
 
-      <div className="grid gap-6">
-        {/* 메뉴 1: 배경 바꾸기 (Cloudinary 덮어쓰기) */}
-        <div className="border rounded-xl bg-white p-6 shadow">
-          <h2 className="font-semibold mb-3">1. 배경 바꾸기</h2>
+      <input
+        type="file"
+        accept="image/*"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+        className="block w-full"
+      />
 
-          <input type="file" accept="image/*" onChange={onFileChange} />
-          {preview && (
-            <div className="mt-3">
-              <img src={preview} alt="preview" className="w-full max-w-xs rounded-lg border" />
-            </div>
-          )}
+      <button
+        onClick={handleUpload}
+        disabled={busy || !file}
+        className={`mt-4 w-full rounded-lg text-white py-3 font-semibold ${
+          busy ? "bg-gray-400" : "bg-emerald-700 hover:bg-emerald-800"
+        }`}
+      >
+        {busy ? "업로드 중..." : "업로드(덮어쓰기)"}
+      </button>
 
-          <button
-            onClick={onUpload}
-            disabled={uploading || !file}
-            className="mt-4 bg-emerald-700 text-white px-4 py-2 rounded-lg hover:bg-emerald-800 disabled:opacity-60"
-          >
-            {uploading ? "업로드 중…" : "적용하기"}
-          </button>
+      {msg && <p className="mt-3 text-sm">{msg}</p>}
 
-          {lastUrl && (
-            <p className="mt-3 text-sm text-gray-500 break-all">
-              최신 이미지: <a className="underline" href={lastUrl} target="_blank" rel="noreferrer">{lastUrl}</a>
-            </p>
-          )}
-
-          <p className="mt-3 text-sm text-gray-500">
-            업로드하면 Cloudinary의 <code>site/background</code> public_id로 <b>덮어쓰기</b>됩니다.
-          </p>
-        </div>
+      <div className="mt-6">
+        <p className="text-sm text-gray-500">현재 사용 중인 URL(고정):</p>
+        <code className="text-xs break-all">
+          {`https://res.cloudinary.com/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "YOUR_CLOUD"}/image/upload/landing/hero`}
+        </code>
       </div>
     </main>
   );
