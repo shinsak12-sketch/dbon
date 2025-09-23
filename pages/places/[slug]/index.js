@@ -35,20 +35,20 @@ export default function RegionPlaces({ region }) {
           {region.places.map((place) => (
             <li key={place.id} className="rounded-2xl border bg-white hover:shadow">
               <Link
-                // ✅ 상세는 단일 슬러그로 이동 (라우트 충돌 방지)
-                href={`/places/${place.slug}`}
-                className="block p-4 rounded-2xl hover:bg-gray-50"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">{place.name}</span>
-                  <span className="text-sm text-gray-500">
-                    ★ {(place.avgRating ?? 0).toFixed(1)}
-                  </span>
-                </div>
-                {place.address && (
-                  <div className="mt-1 text-sm text-gray-600">{place.address}</div>
-                )}
-              </Link>
+  // ✅ 상세는 지역/맛집 2단계 경로로 이동
+  href={`/places/${region.slug}/${place.slug}`}
+  className="block p-4 rounded-2xl hover:bg-gray-50"
+>
+  <div className="flex items-center justify-between">
+    <span className="font-semibold">{place.name}</span>
+    <span className="text-sm text-gray-500">
+      ★ {(place.avgRating ?? 0).toFixed(1)}
+    </span>
+  </div>
+  {place.address && (
+    <div className="mt-1 text-sm text-gray-600">{place.address}</div>
+  )}
+</Link>
             </li>
           ))}
         </ul>
