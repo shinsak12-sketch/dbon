@@ -2,56 +2,44 @@
 import { useEffect, useState } from "react";
 import Uploader from "../../components/Uploader";
 
-const ADMIN_PASSWORD = "dbsonsa"; // 요청: 고정 비밀번호
-
-export default function AdminPage() {
-  const [authed, setAuthed] = useState(false);
+export default function Admin() {
   const [pwd, setPwd] = useState("");
-  const [imgUrl, setImgUrl] = useState("");
+  const [authed, setAuthed] = useState(false);
+  const [bgUrl, setBgUrl] = useState("");
   const [saving, setSaving] = useState(false);
-  const [currentUrl, setCurrentUrl] = useState("");
 
+  // 현재 저장된 배경 URL 로드
   useEffect(() => {
-    // 간단한 클라 측 토큰(새로고침 유지용)
-    if (typeof window !== "undefined" && localStorage.getItem("admin_ok") === "1") {
-      setAuthed(true);
-      fetchCurrent();
-    }
+    fetch("/api/admin/background")
+      .then(r => r.json())
+      .then(d => setBgUrl(d?.url || ""))
+      .catch(() => {});
   }, []);
 
-  const login = (e) => {
+  function tryLogin(e) {
     e.preventDefault();
-    if (pwd === ADMIN_PASSWORD) {
-      setAuthed(true);
-      if (typeof window !== "undefined") localStorage.setItem("admin_ok", "1");
-      fetchCurrent();
-    } else {
-      alert("비밀번호가 틀렸습니다.");
-    }
-  };
-
-  async function fetchCurrent() {
-    try {
-      const r = await fetch("/api/admin/hero");
-      const j = await r.json();
-      setCurrentUrl(j?.value || "");
-    } catch {}
+    if (pwd === "dbsonsa") setAuthed(true);
+    else alert("비밀번호가 틀렸습니다.");
   }
 
-  async function onSave() {
-    if (!imgUrl) return alert("이미지를 먼저 업로드 해주세요.");
+  async function onUploaded(url) {
+    // Uploader가 업로드 완료 후 넘겨주는 Cloudinary 최종 URL
     setSaving(true);
     try {
-      const r = await fetch("/api/admin/hero", {
+      const r = await fetch("/api/admin/background", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: ADMIN_PASSWORD, imageUrl: imgUrl }),
+        body: JSON.stringify({ password: "dbsonsa", url }),
       });
-      const j = await r.json();
-      if (!r.ok) return alert(j?.error || "저장 실패");
+      const data = await r.json();
+      if (!r.ok) {
+        alert(data?.error || "SERVER_ERROR");
+        return;
+      }
+      setBgUrl(url);
       alert("배경 이미지가 저장되었습니다.");
-      setCurrentUrl(imgUrl);
-      setImgUrl("");
+    } catch (e) {
+      alert("SERVER_ERROR");
     } finally {
       setSaving(false);
     }
@@ -59,18 +47,18 @@ export default function AdminPage() {
 
   if (!authed) {
     return (
-      <main className="max-w-sm mx-auto p-6">
-        <h1 className="text-2xl font-bold">관리자 로그인</h1>
-        <form className="mt-6 space-y-3" onSubmit={login}>
+      <main className="max-w-md mx-auto p-6">
+        <h1 className="text-2xl font-bold mb-4">관리자 로그인</h1>
+        <form onSubmit={tryLogin} className="space-y-3">
           <input
             type="password"
-            placeholder="비밀번호"
             value={pwd}
             onChange={(e) => setPwd(e.target.value)}
-            className="w-full border rounded-xl p-3"
+            placeholder="비밀번호"
+            className="w-full border rounded-lg p-3"
           />
-          <button className="w-full rounded-xl bg-emerald-700 py-3 text-white font-semibold">
-            로그인
+          <button className="w-full rounded-lg bg-emerald-700 text-white p-3 font-semibold">
+            들어가기
           </button>
         </form>
       </main>
@@ -79,39 +67,26 @@ export default function AdminPage() {
 
   return (
     <main className="max-w-xl mx-auto p-6">
-      <h1 className="text-2xl font-extrabold">관리 도구</h1>
+      <h1 className="text-3xl font-extrabold mb-6">관리 도구</h1>
 
-      <section className="mt-6 rounded-2xl border p-5">
-        <h2 className="text-lg font-semibold">① 랜딩 배경 바꾸기 (덮어쓰기)</h2>
+      <section className="rounded-2xl border p-5 space-y-4">
+        <h2 className="text-xl font-bold">① 랜딩 배경 바꾸기 (덮어쓰기)</h2>
 
-        {currentUrl ? (
-          <div className="mt-3">
-            <div className="text-sm text-gray-600">현재 배경 미리보기</div>
+        {bgUrl ? (
+          <div className="rounded-xl overflow-hidden border">
+            {/* 미리보기 */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={currentUrl} alt="current hero" className="mt-2 rounded-xl border" />
+            <img src={bgUrl} alt="현재 배경" className="w-full" />
           </div>
         ) : (
-          <p className="mt-3 text-sm text-gray-500">현재 등록된 배경이 없습니다.</p>
+          <p className="text-gray-600">현재 등록된 배경이 없습니다.</p>
         )}
 
-        <div className="mt-4">
-          <Uploader
-            onUploaded={(url) => setImgUrl(url || "")}
-            defaultUrl={imgUrl}
-            label="이미지 업로드"
-          />
-          <input type="hidden" value={imgUrl || ""} />
-        </div>
-
-        <div className="mt-4">
-          <button
-            onClick={onSave}
-            disabled={saving || !imgUrl}
-            className="rounded-xl bg-emerald-700 px-4 py-2 text-white font-semibold disabled:opacity-60"
-          >
-            {saving ? "저장 중…" : "저장"}
-          </button>
-        </div>
+        <Uploader
+          label={saving ? "업로드 중…" : "이미지 업로드"}
+          onUploaded={onUploaded}
+          disabled={saving}
+        />
       </section>
     </main>
   );
