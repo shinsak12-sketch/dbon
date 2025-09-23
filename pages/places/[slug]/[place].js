@@ -2,7 +2,7 @@
 import prisma from "../../../lib/prisma";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 export async function getServerSideProps({ params }) {
   const regionSlug = params.slug;   // 지역 슬러그
@@ -51,6 +51,8 @@ export default function PlaceDetail({ place }) {
   const addressText = place.address || "";
   const ratingText = (place.avgRating || 0).toFixed(1);
 
+  const [imgOk, setImgOk] = useState(Boolean(place.coverImage));
+
   const shareUrl = useMemo(() => {
     if (typeof window !== "undefined") return window.location.href;
     return `/places/${regionSlug}/${place.slug}`;
@@ -84,10 +86,17 @@ export default function PlaceDetail({ place }) {
     <main className="mx-auto max-w-2xl">
       {/* 히어로(커버) */}
       <div className="relative">
-        {place.coverImage ? (
-          <img src={place.coverImage} alt={place.name} className="h-56 w-full object-cover" />
+        {imgOk && place.coverImage ? (
+          <img
+            src={place.coverImage}
+            alt={place.name}
+            className="h-56 w-full object-cover"
+            onError={() => setImgOk(false)}
+          />
         ) : (
-          <div className="h-56 w-full bg-gradient-to-br from-emerald-100 to-emerald-50" />
+          <div className="h-56 w-full flex items-center justify-center bg-gray-100 text-gray-500">
+            등록된 이미지가 없습니다
+          </div>
         )}
 
         {/* 상단 투명 헤더 영역 */}
@@ -162,7 +171,7 @@ export default function PlaceDetail({ place }) {
 
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Link
-              href={`/places/${place.slug}/review`}
+              href={`/places/${regionSlug}/${place.slug}/review`}
               className="rounded-xl bg-emerald-700 px-4 py-3 text-center font-semibold text-white hover:bg-emerald-800"
             >
               리뷰 작성
@@ -195,11 +204,22 @@ export default function PlaceDetail({ place }) {
                     {new Date(r.createdAt).toLocaleDateString("ko-KR")}
                   </span>
                 </div>
-                {r.imageUrl && (
-                  <div className="mt-3">
-                    <img src={r.imageUrl} alt="review" className="w-full rounded-xl border" />
-                  </div>
-                )}
+                {r.imageUrl ? (
+                  <img
+                    src={r.imageUrl}
+                    alt="review"
+                    className="w-full rounded-xl border mt-3"
+                    onError={(e) => {
+                      e.currentTarget.replaceWith(
+                        Object.assign(document.createElement("div"), {
+                          className:
+                            "w-full rounded-xl border p-4 text-center text-sm text-gray-500 bg-gray-50",
+                          textContent: "리뷰 이미지가 없습니다",
+                        })
+                      );
+                    }}
+                  />
+                ) : null}
                 <p className="mt-3 text-gray-800 whitespace-pre-line">{r.content}</p>
               </li>
             ))}
