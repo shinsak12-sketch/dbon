@@ -53,7 +53,7 @@ export default function RegionDetail({ region, places }) {
         {places.map((p) => (
           <Link
   key={p.id}
-  href={`/places/${region.slug}/${p.slug}`} // ← 2단계 경로로 수정
+  href={`/places/${p.slug}`} // ← 2단계 경로로 수정
   className="flex items-center gap-4 rounded-xl border bg-white p-4 hover:shadow"
 >
             {/* 썸네일 */}
