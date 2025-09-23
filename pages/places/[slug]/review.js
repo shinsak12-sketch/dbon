@@ -1,4 +1,27 @@
-import { useState } from "react";
+// pages/places/[slug]/review.js
+import prisma from "../../../lib/prisma";
+import { useState, useRef } from "react";
+
+export async function getServerSideProps({ params }) {
+  const place = await prisma.place.findUnique({
+    where: { slug: params.slug },
+    select: {
+      slug: true,
+      name: true,
+      region: { select: { slug: true, name: true } },
+    },
+  });
+  if (!place) return { notFound: true };
+
+  return {
+    props: {
+      slug: place.slug,
+      regionSlug: place.region.slug,
+      placeName: place.name,
+      regionName: place.region.name,
+    },
+  };
+}
 
 /** ★ 클릭형 별점 */
 function StarRating({ value, onChange }) {
@@ -22,13 +45,50 @@ function StarRating({ value, onChange }) {
   );
 }
 
-export default function ReviewForm({ slug }) {
+/** 파일을 DataURL(base64)로 변환 */
+async function fileToDataURL(file, maxW = 1600, quality = 0.82) {
+  const bitmap = await createImageBitmap(file);
+  let { width, height } = bitmap;
+  if (width > maxW) {
+    const scale = maxW / width;
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+export default function ReviewForm({ slug, regionSlug, placeName }) {
   const [rating, setRating] = useState(5);
   const [content, setContent] = useState("");
   const [author, setAuthor] = useState("");
-  const [imageUrl, setImageUrl] = useState(""); // ✅ 선택 입력
   const [pin, setPin] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [previewUrl, setPreviewUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  async function onPickFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await fileToDataURL(file);
+      setImageUrl(dataUrl);
+      setPreviewUrl(dataUrl);
+    } catch {
+      alert("이미지 처리 중 문제가 발생했습니다.");
+    }
+  }
+
+  function clearImage() {
+    setImageUrl("");
+    setPreviewUrl("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -38,28 +98,25 @@ export default function ReviewForm({ slug }) {
 
     setLoading(true);
     try {
-      const body = {
-        slug,
-        rating,
-        content,
-        author,
-        pin,
-      };
-      // ✅ 이미지 URL이 있으면 포함, 없으면 안 보냄(서버는 null/미포함 처리)
-      if (imageUrl.trim()) body.imageUrl = imageUrl.trim();
-
       const res = await fetch("/api/reviews", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          slug,
+          rating,
+          content,
+          author,
+          imageUrl, // 파일 선택 시 DataURL, 없으면 빈 값
+          pin,
+        }),
       });
 
       const data = await res.json();
-      if (res.ok) {
-        window.location.href = `/places/${slug}`;
-      } else {
-        alert(data.error || "등록 실패");
+      if (!res.ok) {
+        alert(data?.error || "등록 실패");
+        return;
       }
+      window.location.assign(`/places/${regionSlug}/${slug}`);
     } finally {
       setLoading(false);
     }
@@ -67,56 +124,82 @@ export default function ReviewForm({ slug }) {
 
   return (
     <main className="max-w-md mx-auto p-6">
-      <h1 className="text-2xl font-bold">리뷰 작성</h1>
+      <h1 className="text-2xl font-bold">리뷰 작성 — {placeName}</h1>
 
-      <form className="mt-6 space-y-5" onSubmit={onSubmit}>
+      <form className="mt-6 space-y-6" onSubmit={onSubmit}>
         <div>
           <label className="block text-sm font-medium mb-1">별점</label>
           <StarRating value={rating} onChange={setRating} />
-          <p className="text-xs text-gray-500 mt-1">현재 선택: {rating} / 5</p>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">닉네임</label>
-          <input
-            className="w-full border rounded-lg p-3"
-            value={author}
-            onChange={(e) => setAuthor(e.target.value)}
-            required
-          />
-        </div>
+        <div className="grid gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">닉네임</label>
+            <input
+              className="w-full border rounded-lg p-3"
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              required
+            />
+          </div>
 
-        {/* ✅ 이미지 URL은 선택 입력 */}
-        <div>
-          <label className="block text-sm font-medium mb-1">이미지 URL (선택)</label>
-          <input
-            className="w-full border rounded-lg p-3"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="https://..."
-          />
-        </div>
+          {/* 이미지 첨부 */}
+          <div>
+            <label className="block text-sm font-medium mb-1">이미지 첨부 (선택)</label>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={onPickFile}
+                className="block w-full text-sm"
+              />
+              {previewUrl ? (
+                <button
+                  type="button"
+                  onClick={clearImage}
+                  className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+                >
+                  제거
+                </button>
+              ) : null}
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">비밀번호(수정/삭제용)</label>
-          <input
-            className="w-full border rounded-lg p-3"
-            type="password"
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            required
-          />
-        </div>
+            {previewUrl ? (
+              <div className="mt-3">
+                <img
+                  src={previewUrl}
+                  alt="preview"
+                  className="w-full rounded-xl border"
+                  onError={clearImage}
+                />
+              </div>
+            ) : null}
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">리뷰 내용</label>
-          <textarea
-            className="w-full border rounded-lg p-3"
-            rows={5}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            required
-          />
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              비밀번호(수정/삭제용)
+            </label>
+            <input
+              className="w-full border rounded-lg p-3"
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">리뷰 내용</label>
+            <textarea
+              className="w-full border rounded-lg p-3"
+              rows={5}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              required
+            />
+          </div>
         </div>
 
         <button
@@ -130,8 +213,4 @@ export default function ReviewForm({ slug }) {
       </form>
     </main>
   );
-}
-
-export async function getServerSideProps({ params }) {
-  return { props: { slug: params.slug } };
 }
