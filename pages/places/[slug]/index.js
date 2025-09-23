@@ -6,9 +6,20 @@ export async function getServerSideProps({ params }) {
   const region = await prisma.region.findUnique({
     where: { slug: params.slug },
     include: {
-      places: { orderBy: { createdAt: "desc" } }, // 최신 등록순
+      places: {
+        orderBy: { createdAt: "desc" }, // 최신 등록순
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          avgRating: true,
+          address: true,
+          coverImage: true,
+        },
+      },
     },
   });
+
   if (!region) return { notFound: true };
   return { props: { region } };
 }
@@ -33,22 +44,26 @@ export default function RegionPlaces({ region }) {
       ) : (
         <ul className="mt-6 space-y-3">
           {region.places.map((place) => (
-            <li key={place.id} className="rounded-2xl border bg-white hover:shadow">
+            <li
+              key={place.id}
+              className="rounded-2xl border bg-white hover:shadow transition"
+            >
               <Link
-  // ✅ 상세는 지역/맛집 2단계 경로로 이동
-  href={`/places/${place.slug}`}
-  className="block p-4 rounded-2xl hover:bg-gray-50"
->
-  <div className="flex items-center justify-between">
-    <span className="font-semibold">{place.name}</span>
-    <span className="text-sm text-gray-500">
-      ★ {(place.avgRating ?? 0).toFixed(1)}
-    </span>
-  </div>
-  {place.address && (
-    <div className="mt-1 text-sm text-gray-600">{place.address}</div>
-  )}
-</Link>
+                href={`/places/${region.slug}/${place.slug}`} // ✅ 2단계 상세 경로
+                className="block p-4 rounded-2xl hover:bg-gray-50"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">{place.name}</span>
+                  <span className="text-sm text-gray-500">
+                    ★ {(place.avgRating ?? 0).toFixed(1)}
+                  </span>
+                </div>
+                {place.address && (
+                  <div className="mt-1 text-sm text-gray-600">
+                    {place.address}
+                  </div>
+                )}
+              </Link>
             </li>
           ))}
         </ul>
