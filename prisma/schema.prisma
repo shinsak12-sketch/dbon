@@ -31,7 +31,7 @@ model Place {
   mapUrl        String?
   coverImage    String?
 
-  // 새로 추가할 부분
+  // 새로 추가한 필드들
   description   String?    @db.Text   // 소개글
   author        String?               // 작성자 이름
   ownerPassHash String?               // 수정/삭제용 비밀번호 해시
@@ -54,4 +54,13 @@ model Review {
   pin       String?     // 수정/삭제용 비밀번호(간단 보호)
 
   createdAt DateTime @default(now())
+}
+
+//
+// 🔸 랜딩/관리자 설정 보관용
+//
+model Setting {
+  key       String   @id          // 예: "heroUrl"
+  value     String?               // 값(예: 이미지 URL)
+  updatedAt DateTime @updatedAt
 }
