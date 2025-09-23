@@ -2,90 +2,114 @@
 import prisma from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
 
-/** 가게명 → 슬러그 베이스 */
+/** 이름 → slug 베이스 */
 function slugifyBase(s) {
   return String(s || "")
     .trim()
     .toLowerCase()
-    // 영문/숫자/한글은 살리고, 나머지는 하이픈으로
     .replace(/[^\w가-힣]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 }
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
+/** region id 얻기: regionSlug 또는 region(id) 모두 지원 */
+async function resolveRegionId({ regionSlug, region }) {
+  if (region && String(region).trim()) {
+    return Number(region);
   }
-
-  try {
-    const {
-      name,
-      regionSlug,     // /places/[slug]/new 에서 전달됨
-      description,
-      author,
-      address,
-      mapUrl,
-      coverImage,     // ✅ 선택 사항 (없어도 됨)
-      ownerPass,      // 선택(수정/삭제용)
-    } = req.body || {};
-
-    // 필수값 체크
-    if (!name || !String(name).trim()) {
-      return res.status(400).json({ error: "NAME_REQUIRED" });
-    }
-    if (!regionSlug || !String(regionSlug).trim()) {
-      return res.status(400).json({ error: "REGION_REQUIRED" });
-    }
-    // ✅ coverImage 필수 검사 제거
-
-    // 지역 확인
-    const region = await prisma.region.findUnique({
+  if (regionSlug && String(regionSlug).trim()) {
+    const r = await prisma.region.findUnique({
       where: { slug: String(regionSlug) },
-      select: { id: true, slug: true },
+      select: { id: true },
     });
-    if (!region) return res.status(400).json({ error: "INVALID_REGION" });
-
-    // 비밀번호 해시(선택)
-    let ownerPassHash = null;
-    if (ownerPass && String(ownerPass).trim()) {
-      ownerPassHash = await bcrypt.hash(String(ownerPass).trim(), 10);
-    }
-
-    // 고유 place slug 생성: {region.slug}-{name-slug}-{n}
-    const base = slugifyBase(name) || "place";
-    let slug = `${region.slug}-${base}`.slice(0, 80);
-    let n = 0;
-    while (await prisma.place.findUnique({ where: { slug } })) {
-      n += 1;
-      slug = `${region.slug}-${base}-${n}`;
-    }
-
-    // 생성
-    const place = await prisma.place.create({
-      data: {
-        name: String(name).trim(),
-        slug,
-        regionId: region.id,
-        description: description ? String(description) : null,
-        author: author ? String(author) : null,
-        address: address ? String(address) : null,
-        mapUrl: mapUrl ? String(mapUrl) : null,
-        // ✅ 이미지가 없으면 null 저장 (Prisma 스키마에서 String? 이어야 함)
-        coverImage:
-          coverImage && String(coverImage).trim()
-            ? String(coverImage).trim()
-            : null,
-        ownerPassHash,
-        // avgRating, reviewsCount 는 기본값 0
-      },
-      select: { id: true, slug: true },
-    });
-
-    return res.status(201).json({ ok: true, place });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "SERVER_ERROR" });
+    return r?.id ?? null;
   }
+  return null;
 }
+
+/** place 조회: id 또는 slug 둘 다 지원 */
+async function findPlaceByIdOrSlug({ id, slug }) {
+  if (id) return prisma.place.findUnique({ where: { id: Number(id) } });
+  if (slug) return prisma.place.findUnique({ where: { slug: String(slug) } });
+  return null;
+}
+
+export default async function handler(req, res) {
+  // -------------------- 생성 --------------------
+  if (req.method === "POST") {
+    try {
+      const {
+        // 새 입력 (권장)
+        name,
+        regionSlug,         // 또는 아래의 region(숫자 id)
+        description,
+        author,
+        address,
+        mapUrl,
+        coverImage,         // 선택
+        ownerPass,          // 선택
+        // 호환 입력
+        slug: providedSlug, // 예전 API가 넘기던 값(있으면 그대로 사용)
+        region,             // 숫자 id (과거 방식)
+      } = req.body || {};
+
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: "NAME_REQUIRED" });
+      }
+
+      // region 확인(둘 다 지원)
+      const regionId = await resolveRegionId({ regionSlug, region });
+      if (!regionId) return res.status(400).json({ error: "REGION_REQUIRED" });
+
+      // 비밀번호 해시(선택)
+      let ownerPassHash = null;
+      if (ownerPass && String(ownerPass).trim()) {
+        ownerPassHash = await bcrypt.hash(String(ownerPass).trim(), 10);
+      }
+
+      // slug 결정: 제공되면 사용, 없으면 생성
+      let slug = (providedSlug && String(providedSlug).trim()) || null;
+      if (!slug) {
+        const base = slugifyBase(name) || "place";
+        // regionSlug가 있으면 prefix로 쓰고, 없으면 regionId만으로도 고유성 충분
+        const prefix = regionSlug ? `${regionSlug}-` : "";
+        slug = `${prefix}${base}`.slice(0, 80);
+        let n = 0;
+        // 고유 확보
+        // eslint-disable-next-line no-await-in-loop
+        while (await prisma.place.findUnique({ where: { slug } })) {
+          n += 1;
+          slug = `${prefix}${base}-${n}`;
+        }
+      }
+
+      const place = await prisma.place.create({
+        data: {
+          name: String(name).trim(),
+          slug,
+          regionId,
+          description: description ? String(description) : null,
+          author: author ? String(author) : null,
+          address: address ? String(address) : null,
+          mapUrl: mapUrl ? String(mapUrl) : null,
+          coverImage:
+            coverImage && String(coverImage).trim()
+              ? String(coverImage).trim()
+              : null, // 선택
+          ownerPassHash,
+        },
+        select: { id: true, slug: true },
+      });
+
+      return res.status(201).json({ ok: true, place });
+    } catch (e) {
+      console.error("Error creating place:", e);
+      return res.status(500).json({ error: "SERVER_ERROR" });
+    }
+  }
+
+  // -------------------- 수정 --------------------
+  if (req.method === "PUT") {
+    try {
+      const {
+        id,            // 또는
