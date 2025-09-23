@@ -8,8 +8,10 @@ export default function Success() {
   const region = String(query.region || "");
 
   // 안전장치: 쿼리 누락 시 홈/목록으로
-  const detailHref = region && place ? `/places/${region}/${place}` : "/";
-  const regionHref = region ? `/places/${region}` : "/`;
+  const detailHref =
+    region && place ? `/places/${region}/${place}` : "/";
+  const regionHref =
+    region ? `/places/${region}` : "/";   // ← 따옴표 수정
 
   return (
     <main className="mx-auto max-w-xl p-8 text-center">
