@@ -113,3 +113,70 @@ export default async function handler(req, res) {
     try {
       const {
         id,            // 또는
+        slug,          // ← 둘 중 하나로 대상 지정
+        name,
+        address,
+        mapUrl,
+        coverImage,
+        description,
+        author,
+        ownerPass,     // 검증용
+      } = req.body || {};
+
+      const place = await findPlaceByIdOrSlug({ id, slug });
+      if (!place) return res.status(404).json({ error: "NOT_FOUND" });
+
+      // 비밀번호 검증(기존 유지)
+      const valid = await bcrypt.compare(
+        String(ownerPass || ""),
+        String(place.ownerPassHash || "")
+      );
+      if (!valid) return res.status(403).json({ error: "INVALID_PASSWORD" });
+
+      await prisma.place.update({
+        where: { id: place.id },
+        data: {
+          name: name ?? place.name,
+          address: address ?? place.address,
+          mapUrl: mapUrl ?? place.mapUrl,
+          coverImage:
+            coverImage !== undefined
+              ? coverImage || null
+              : place.coverImage,
+          description: description ?? place.description,
+          author: author ?? place.author,
+        },
+      });
+
+      return res.status(200).json({ ok: true });
+    } catch (e) {
+      console.error("Error updating place:", e);
+      return res.status(500).json({ error: "SERVER_ERROR" });
+    }
+  }
+
+  // -------------------- 삭제 --------------------
+  if (req.method === "DELETE") {
+    try {
+      const { id, slug, ownerPass } = req.body || {};
+
+      const place = await findPlaceByIdOrSlug({ id, slug });
+      if (!place) return res.status(404).json({ error: "NOT_FOUND" });
+
+      const valid = await bcrypt.compare(
+        String(ownerPass || ""),
+        String(place.ownerPassHash || "")
+      );
+      if (!valid) return res.status(403).json({ error: "INVALID_PASSWORD" });
+
+      await prisma.place.delete({ where: { id: place.id } });
+      return res.status(200).json({ ok: true });
+    } catch (e) {
+      console.error("Error deleting place:", e);
+      return res.status(500).json({ error: "SERVER_ERROR" });
+    }
+  }
+
+  res.setHeader("Allow", ["POST", "PUT", "DELETE"]);
+  return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
+                                   }
