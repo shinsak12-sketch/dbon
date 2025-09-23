@@ -6,14 +6,10 @@ export async function getServerSideProps({ params }) {
   const region = await prisma.region.findUnique({
     where: { slug: params.slug },
     include: {
-      places: {
-        orderBy: { createdAt: "desc" }, // 최신 등록순
-      },
+      places: { orderBy: { createdAt: "desc" } }, // 최신 등록순
     },
   });
-
   if (!region) return { notFound: true };
-
   return { props: { region } };
 }
 
@@ -37,9 +33,10 @@ export default function RegionPlaces({ region }) {
       ) : (
         <ul className="mt-6 space-y-3">
           {region.places.map((place) => (
-            <li key={place.id} className="card">
+            <li key={place.id} className="rounded-2xl border bg-white hover:shadow">
               <Link
-                href={`/places/${region.slug}/${place.slug}`} // ✅ 두 단계 경로
+                // ✅ 상세는 단일 슬러그로 이동 (라우트 충돌 방지)
+                href={`/places/${place.slug}`}
                 className="block p-4 rounded-2xl hover:bg-gray-50"
               >
                 <div className="flex items-center justify-between">
@@ -49,9 +46,7 @@ export default function RegionPlaces({ region }) {
                   </span>
                 </div>
                 {place.address && (
-                  <div className="mt-1 text-sm text-gray-600">
-                    {place.address}
-                  </div>
+                  <div className="mt-1 text-sm text-gray-600">{place.address}</div>
                 )}
               </Link>
             </li>
