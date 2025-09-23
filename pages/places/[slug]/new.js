@@ -35,7 +35,7 @@ export default function NewPlace({ region }) {
     name: "",
     address: "",
     mapUrl: "",
-    coverImage: "",     // 선택 사항
+    coverImage: "",
     description: "",
     author: "",
     ownerPass: "",
@@ -57,11 +57,7 @@ export default function NewPlace({ region }) {
     }));
 
   // 업로더 콜백
-  const onUploaded = (url) =>
-    setForm((f) => ({
-      ...f,
-      coverImage: url || "",
-    }));
+  const onUploaded = (url) => setForm((f) => ({ ...f, coverImage: url || "" }));
 
   // 네이버에서 찾기 버튼 토글 (가게명 아래)
   const toggleSearch = () => setSearchOpen((v) => !v);
@@ -109,7 +105,6 @@ export default function NewPlace({ region }) {
   // 제출
   const onSubmit = async (e) => {
     e.preventDefault();
-
     if (!form.name.trim()) {
       alert("가게명을 입력해 주세요.");
       nameRef.current?.focus();
@@ -130,15 +125,17 @@ export default function NewPlace({ region }) {
           ...form, // coverImage는 선택사항
         }),
       });
-
       const data = await r.json();
       if (!r.ok) {
         alert(data?.error || "등록 실패");
         return;
       }
-
-      // ✅ 알림 없이 성공 페이지로 이동 (place slug 전달)
-      router.replace(`/places/success?slug=${encodeURIComponent(data.place.slug)}`);
+      // ✅ 성공 페이지로: 두 단계 라우트에 맞춰 place & region 같이 전달
+      router.replace(
+        `/places/success?place=${encodeURIComponent(data.place.slug)}&region=${encodeURIComponent(
+          region.slug
+        )}`
+      );
     } catch (e) {
       console.error(e);
       alert("네트워크 오류");
@@ -163,7 +160,7 @@ export default function NewPlace({ region }) {
             name="name"
             value={form.name}
             onChange={onChange}
-            onInput={(e) => setQuery(e.currentTarget.value)} // 타이핑 → 검색어 반영
+            onInput={(e) => setQuery(e.currentTarget.value)}
             placeholder="예) 부대찌개대사관"
             aria-label="가게명"
           />
@@ -251,11 +248,7 @@ export default function NewPlace({ region }) {
         <div className="mt-6">
           <Label>이미지 첨부 (선택)</Label>
           <div className="mt-2">
-            <Uploader
-              onUploaded={onUploaded}
-              label="이미지 선택"
-              defaultUrl={form.coverImage}
-            />
+            <Uploader onUploaded={onUploaded} label="이미지 선택" defaultUrl={form.coverImage} />
           </div>
           {/* URL 입력칸은 숨기고 값만 폼에 유지 */}
           <input type="hidden" name="coverImage" value={form.coverImage || ""} />
@@ -336,4 +329,4 @@ export default function NewPlace({ region }) {
       </form>
     </main>
   );
-          }
+}
