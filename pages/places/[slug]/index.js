@@ -36,7 +36,7 @@ export default function RegionPlaces({ region }) {
             <li key={place.id} className="rounded-2xl border bg-white hover:shadow">
               <Link
   // ✅ 상세는 지역/맛집 2단계 경로로 이동
-  href={`/places/${region.slug}/${place.slug}`}
+  href={`/places/${place.slug}`}
   className="block p-4 rounded-2xl hover:bg-gray-50"
 >
   <div className="flex items-center justify-between">
