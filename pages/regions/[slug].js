@@ -52,10 +52,10 @@ export default function RegionDetail({ region, places }) {
       <div className="mt-6 grid gap-4">
         {places.map((p) => (
           <Link
-  key={p.id}
-  href={`/places/${p.slug}`} // ← 2단계 경로로 수정
-  className="flex items-center gap-4 rounded-xl border bg-white p-4 hover:shadow"
->
+            key={p.id}
+            href={`/places/${region.slug}/${p.slug}`} // ✅ 지역/맛집 2단계 경로
+            className="flex items-center gap-4 rounded-xl border bg-white p-4 hover:shadow"
+          >
             {/* 썸네일 */}
             <div className="w-20 h-20 flex-shrink-0 overflow-hidden rounded-lg border bg-gray-50">
               {p.coverImage ? (
@@ -91,4 +91,4 @@ export default function RegionDetail({ region, places }) {
       </div>
     </main>
   );
-              }
+}
