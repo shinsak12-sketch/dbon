@@ -4,12 +4,16 @@ import { useRouter } from "next/router";
 
 export default function Success() {
   const { query } = useRouter();
-// ✂️ region / place 둘 다 받음
-const place  = String(query.place || "");
-const region = String(query.region || "");
+  const place = String(query.place || "");
+  const region = String(query.region || "");
 
-const detailHref = region && place ? `/places/${region}/${place}` : "/";
-const regionHref = region ? `/places/${region}` : "/";
+  // 상세로 이동
+  const detailHref =
+    region && place ? `/places/${region}/${place}` : "/";
+
+  // ✅ 지역 목록(카드/이미지 있는 페이지)로 이동
+  const regionHref =
+    region ? `/regions/${region}` : "/";
 
   return (
     <main className="mx-auto max-w-xl p-8 text-center">
