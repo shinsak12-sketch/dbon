@@ -131,11 +131,11 @@ export default function NewPlace({ region }) {
         return;
       }
       // ✅ 성공 페이지로: 두 단계 라우트에 맞춰 place & region 같이 전달
-      router.replace(
-        `/places/success?place=${encodeURIComponent(data.place.slug)}&region=${encodeURIComponent(
-          region.slug
-        )}`
-      );
+      // ...생략...
+// ✂️ region + place 두 개의 쿼리로 전달
+router.replace(
+  `/places/success?region=${encodeURIComponent(region.slug)}&place=${encodeURIComponent(data.place.slug)}`
+);
     } catch (e) {
       console.error(e);
       alert("네트워크 오류");
