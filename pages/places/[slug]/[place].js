@@ -51,7 +51,9 @@ export default function PlaceDetail({ place }) {
   const addressText = place.address || "";
   const ratingText = (place.avgRating || 0).toFixed(1);
 
-  const [imgOk, setImgOk] = useState(Boolean(place.coverImage));
+  const [imgErr, setImgErr] = useState(false);
+  const hasImage =
+    !!place.coverImage && /^https?:\/\//i.test(place.coverImage);
 
   const shareUrl = useMemo(() => {
     if (typeof window !== "undefined") return window.location.href;
@@ -86,12 +88,12 @@ export default function PlaceDetail({ place }) {
     <main className="mx-auto max-w-2xl">
       {/* 히어로(커버) */}
       <div className="relative">
-        {imgOk && place.coverImage ? (
+        {hasImage && !imgErr ? (
           <img
             src={place.coverImage}
             alt={place.name}
             className="h-56 w-full object-cover"
-            onError={() => setImgOk(false)}
+            onError={() => setImgErr(true)}
           />
         ) : (
           <div className="h-56 w-full flex items-center justify-center bg-gray-100 text-gray-500">
@@ -171,7 +173,7 @@ export default function PlaceDetail({ place }) {
 
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Link
-              href={`/places/${regionSlug}/${place.slug}/review`}
+              href={`/places/${place.slug}/review`}
               className="rounded-xl bg-emerald-700 px-4 py-3 text-center font-semibold text-white hover:bg-emerald-800"
             >
               리뷰 작성
@@ -204,22 +206,18 @@ export default function PlaceDetail({ place }) {
                     {new Date(r.createdAt).toLocaleDateString("ko-KR")}
                   </span>
                 </div>
-                {r.imageUrl ? (
-                  <img
-                    src={r.imageUrl}
-                    alt="review"
-                    className="w-full rounded-xl border mt-3"
-                    onError={(e) => {
-                      e.currentTarget.replaceWith(
-                        Object.assign(document.createElement("div"), {
-                          className:
-                            "w-full rounded-xl border p-4 text-center text-sm text-gray-500 bg-gray-50",
-                          textContent: "리뷰 이미지가 없습니다",
-                        })
-                      );
-                    }}
-                  />
-                ) : null}
+                {r.imageUrl && /^https?:\/\//i.test(r.imageUrl) && (
+                  <div className="mt-3">
+                    <img
+                      src={r.imageUrl}
+                      alt="review"
+                      className="w-full rounded-xl border"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none"; // 깨지면 숨김
+                      }}
+                    />
+                  </div>
+                )}
                 <p className="mt-3 text-gray-800 whitespace-pre-line">{r.content}</p>
               </li>
             ))}
