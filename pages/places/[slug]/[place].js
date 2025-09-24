@@ -52,7 +52,7 @@ export default function PlaceDetail({ place }) {
   const [imgErr, setImgErr] = useState(false);
   const hasImage = !!place.coverImage && /^https?:\/\//i.test(place.coverImage);
 
-  // ▼ 추가: 메뉴/삭제 모달 상태
+  // 메뉴/삭제 모달 상태
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePwd, setDeletePwd] = useState("");
@@ -87,7 +87,7 @@ export default function PlaceDetail({ place }) {
     } catch {}
   };
 
-  // ▼ 추가: 편집/삭제 동작
+  // 편집/삭제 동작
   const goEdit = () => {
     setMenuOpen(false);
     router.push(`/places/${place.slug}/edit`);
@@ -110,7 +110,8 @@ export default function PlaceDetail({ place }) {
         alert(data?.error || "삭제 실패");
         return;
       }
-      router.replace(`/places/${regionSlug}`);
+      // ✅ 삭제 후 지역 목록으로 이동
+      router.replace(`/regions/${regionSlug}`);
     } finally {
       setDeleting(false);
       setDeleteOpen(false);
@@ -139,7 +140,7 @@ export default function PlaceDetail({ place }) {
         {/* 상단 투명 헤더 영역 */}
         <div className="absolute inset-x-0 top-0 p-3 flex items-center justify-between">
           <button
-            onClick={() => router.push(`/places/${regionSlug}`)}
+            onClick={() => router.push(`/regions/${regionSlug}`)}
             className="rounded-full bg-black/40 text-white px-3 py-1 text-sm"
           >
             ← 목록
@@ -244,7 +245,7 @@ export default function PlaceDetail({ place }) {
               리뷰 작성
             </Link>
             <Link
-              href={`/places/${regionSlug}`}
+              href={`/regions/${regionSlug}`}
               className="rounded-xl border px-4 py-3 text-center font-semibold hover:bg-gray-50"
             >
               목록으로
@@ -326,4 +327,4 @@ export default function PlaceDetail({ place }) {
       )}
     </main>
   );
-          }
+                }
