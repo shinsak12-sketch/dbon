@@ -8,7 +8,6 @@ export async function getServerSideProps({ params }) {
   const regionSlug = params.slug;   // 지역 슬러그
   const placeSlug  = params.place;  // 가게(맛집) 슬러그
 
-  // place는 slug로 찾고, region도 함께 가져옴
   const place = await prisma.place.findUnique({
     where: { slug: placeSlug },
     include: {
@@ -19,7 +18,6 @@ export async function getServerSideProps({ params }) {
 
   if (!place) return { notFound: true };
 
-  // URL의 regionSlug와 실제 place.region.slug가 다르면 올바른 경로로 301 리다이렉트
   if (place.region?.slug && place.region.slug !== regionSlug) {
     return {
       redirect: {
@@ -52,8 +50,13 @@ export default function PlaceDetail({ place }) {
   const ratingText = (place.avgRating || 0).toFixed(1);
 
   const [imgErr, setImgErr] = useState(false);
-  const hasImage =
-    !!place.coverImage && /^https?:\/\//i.test(place.coverImage);
+  const hasImage = !!place.coverImage && /^https?:\/\//i.test(place.coverImage);
+
+  // ▼ 추가: 메뉴/삭제 모달 상태
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePwd, setDeletePwd] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const shareUrl = useMemo(() => {
     if (typeof window !== "undefined") return window.location.href;
@@ -82,6 +85,38 @@ export default function PlaceDetail({ place }) {
         alert("링크를 복사했습니다.");
       }
     } catch {}
+  };
+
+  // ▼ 추가: 편집/삭제 동작
+  const goEdit = () => {
+    setMenuOpen(false);
+    router.push(`/places/${place.slug}/edit`);
+  };
+
+  const doDelete = async () => {
+    if (!deletePwd.trim()) {
+      alert("삭제 비밀번호를 입력해 주세요.");
+      return;
+    }
+    setDeleting(true);
+    try {
+      const r = await fetch(`/api/places/${place.slug}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: deletePwd }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        alert(data?.error || "삭제 실패");
+        return;
+      }
+      router.replace(`/places/${regionSlug}`);
+    } finally {
+      setDeleting(false);
+      setDeleteOpen(false);
+      setMenuOpen(false);
+      setDeletePwd("");
+    }
   };
 
   return (
@@ -118,7 +153,7 @@ export default function PlaceDetail({ place }) {
       {/* 본문 카드 */}
       <section className="p-4 sm:p-6 -mt-6 sm:-mt-8 relative">
         <div className="rounded-2xl border bg-white p-5 shadow-soft">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 relative">
             <div>
               <h1 className="text-2xl font-extrabold text-emerald-800">{place.name}</h1>
               <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
@@ -127,13 +162,43 @@ export default function PlaceDetail({ place }) {
                 <span>리뷰 {place.reviewsCount || place.reviews?.length || 0}개</span>
               </div>
             </div>
-            <button
-              onClick={onShare}
-              className="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-gray-50"
-              aria-label="공유"
-            >
-              공유
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onShare}
+                className="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-gray-50"
+                aria-label="공유"
+              >
+                공유
+              </button>
+
+              {/* ⋯ 메뉴 버튼 */}
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                className="rounded-xl border px-3 py-2 text-xl leading-none hover:bg-gray-50"
+                aria-label="더보기"
+              >
+                ⋯
+              </button>
+
+              {/* 드롭다운 */}
+              {menuOpen && (
+                <div className="absolute right-0 top-12 z-10 w-36 overflow-hidden rounded-xl border bg-white shadow-lg">
+                  <button
+                    onClick={goEdit}
+                    className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-50"
+                  >
+                    수정하기
+                  </button>
+                  <button
+                    onClick={() => { setMenuOpen(false); setDeleteOpen(true); }}
+                    className="block w-full px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50"
+                  >
+                    삭제하기
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {(place.address || place.mapUrl) && (
@@ -224,6 +289,41 @@ export default function PlaceDetail({ place }) {
           </ul>
         </div>
       </section>
+
+      {/* 삭제 모달 */}
+      {deleteOpen && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5">
+            <h3 className="text-lg font-bold">맛집 삭제</h3>
+            <p className="mt-1 text-sm text-gray-600">등록 시 설정한 비밀번호를 입력하세요.</p>
+
+            <input
+              type="password"
+              value={deletePwd}
+              onChange={(e) => setDeletePwd(e.target.value)}
+              placeholder="비밀번호"
+              className="mt-4 w-full rounded-lg border p-3"
+              autoFocus
+            />
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+                onClick={() => { setDeleteOpen(false); setDeletePwd(""); }}
+              >
+                취소
+              </button>
+              <button
+                disabled={deleting}
+                onClick={doDelete}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+              >
+                {deleting ? "삭제 중…" : "삭제"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
-}
+                  }
