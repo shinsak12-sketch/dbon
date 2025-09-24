@@ -52,7 +52,7 @@ export default function PlaceDetail({ place }) {
   const [imgErr, setImgErr] = useState(false);
   const hasImage = !!place.coverImage && /^https?:\/\//i.test(place.coverImage);
 
-  // ▼ 추가: 메뉴/삭제 모달 상태
+  // 메뉴/삭제 모달 상태
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePwd, setDeletePwd] = useState("");
@@ -87,10 +87,10 @@ export default function PlaceDetail({ place }) {
     } catch {}
   };
 
-  // ▼ 추가: 편집/삭제 동작
+  // 편집/삭제 동작
   const goEdit = () => {
     setMenuOpen(false);
-    router.push(`/places/${place.slug}/edit`);
+    router.push(`/places/${regionSlug}/${place.slug}/edit`);
   };
 
   const doDelete = async () => {
@@ -191,7 +191,10 @@ export default function PlaceDetail({ place }) {
                     수정하기
                   </button>
                   <button
-                    onClick={() => { setMenuOpen(false); setDeleteOpen(true); }}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setDeleteOpen(true);
+                    }}
                     className="block w-full px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50"
                   >
                     삭제하기
@@ -238,7 +241,7 @@ export default function PlaceDetail({ place }) {
 
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Link
-              href={`/places/${place.slug}/review`}
+              href={`/places/${regionSlug}/${place.slug}/review`}
               className="rounded-xl bg-emerald-700 px-4 py-3 text-center font-semibold text-white hover:bg-emerald-800"
             >
               리뷰 작성
@@ -309,7 +312,10 @@ export default function PlaceDetail({ place }) {
             <div className="mt-4 flex justify-end gap-2">
               <button
                 className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
-                onClick={() => { setDeleteOpen(false); setDeletePwd(""); }}
+                onClick={() => {
+                  setDeleteOpen(false);
+                  setDeletePwd("");
+                }}
               >
                 취소
               </button>
@@ -326,4 +332,4 @@ export default function PlaceDetail({ place }) {
       )}
     </main>
   );
-                  }
+          }
