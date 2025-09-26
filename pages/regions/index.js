@@ -16,11 +16,11 @@ export default function Regions({ regions }) {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-extrabold text-emerald-800">지역 선택</h1>
         <Link
-          href="/select"
-          className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-gray-50"
-        >
-          ← 선택으로
-        </Link>
+  href="/choose"
+  className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-gray-50"
+>
+  ← 선택으로
+</Link>
       </div>
 
       <p className="text-gray-500 mt-2">보고 싶은 지역을 선택하세요</p>
