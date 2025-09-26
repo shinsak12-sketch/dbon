@@ -1,4 +1,3 @@
-// pages/regions/[slug].js
 import prisma from "../../lib/prisma";
 import Link from "next/link";
 
@@ -29,18 +28,29 @@ export async function getServerSideProps({ params }) {
 export default function RegionDetail({ region, places }) {
   return (
     <main className="max-w-3xl mx-auto p-6">
-      {/* ⬇️ 제목 + 버튼을 같은 줄에 배치 */}
+      {/* 제목 + 버튼들을 같은 줄에 배치 */}
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-3xl font-extrabold text-emerald-800">
           {region.name} 맛집
         </h1>
 
-        <Link
-          href={`/places/${region.slug}/new`}
-          className="shrink-0 rounded-xl bg-emerald-700 text-white px-4 py-2 text-sm font-semibold hover:bg-emerald-800"
-        >
-          맛집 등록하기
-        </Link>
+        <div className="flex gap-2">
+          {/* 지역 목록 버튼 */}
+          <Link
+            href="/regions"
+            className="shrink-0 rounded-xl border border-emerald-700 text-emerald-700 px-4 py-2 text-sm font-semibold hover:bg-emerald-50"
+          >
+            지역 목록
+          </Link>
+
+          {/* 맛집 등록 버튼 */}
+          <Link
+            href={`/places/${region.slug}/new`}
+            className="shrink-0 rounded-xl bg-emerald-700 text-white px-4 py-2 text-sm font-semibold hover:bg-emerald-800"
+          >
+            맛집 등록하기
+          </Link>
+        </div>
       </div>
 
       {/* 비어있을 때 안내 */}
