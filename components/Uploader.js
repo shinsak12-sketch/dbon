@@ -4,9 +4,9 @@ import { useRef, useState } from "react";
 export default function Uploader({
   onUploaded,
   label = "이미지 선택",
-  defaultUrl = "",
+  defaultUrls = [],
 }) {
-  const [preview, setPreview] = useState(defaultUrl);
+  const [previews, setPreviews] = useState(defaultUrls);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
 
@@ -25,12 +25,14 @@ export default function Uploader({
 
     setLoading(true);
     try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, {
-        method: "POST",
-        body: fd,
-      });
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloud}/image/upload`,
+        {
+          method: "POST",
+          body: fd,
+        }
+      );
 
-      // 응답 전문 확인용
       const data = await res.json();
       console.log("[Cloudinary upload response]", data);
 
@@ -41,16 +43,12 @@ export default function Uploader({
           `HTTP ${res.status} 업로드 실패`;
         alert(`업로드 오류: ${msg}`);
         return;
-        // 예시 에러 메시지:
-        // - preset not found
-        // - unsigned upload not allowed
-        // - Invalid unsigned upload preset
-        // - File size too large
       }
 
       if (data.secure_url) {
-        setPreview(data.secure_url);
-        onUploaded?.(data.secure_url);
+        const newList = [...previews, data.secure_url];
+        setPreviews(newList);
+        onUploaded?.(newList);
       } else {
         alert("업로드는 성공했지만 URL을 받지 못했습니다.");
       }
@@ -63,15 +61,40 @@ export default function Uploader({
   }
 
   function onChange(e) {
-    const file = e.target.files?.[0];
-    if (file) upload(file);
+    const files = Array.from(e.target.files || []);
+    files.forEach((file) => upload(file));
+  }
+
+  function removeImage(url) {
+    const newList = previews.filter((u) => u !== url);
+    setPreviews(newList);
+    onUploaded?.(newList);
   }
 
   return (
     <div className="space-y-2">
-      {preview && (
-        <img src={preview} alt="preview" className="w-full rounded-lg border" />
+      {/* 미리보기 여러 개 */}
+      {previews.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          {previews.map((url, i) => (
+            <div key={i} className="relative group">
+              <img
+                src={url}
+                alt={`preview-${i}`}
+                className="w-full h-24 object-cover rounded-lg border"
+              />
+              <button
+                type="button"
+                onClick={() => removeImage(url)}
+                className="absolute top-1 right-1 bg-black/60 text-white text-xs rounded-full px-2 py-0.5 opacity-0 group-hover:opacity-100 transition"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
       )}
+
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -86,6 +109,7 @@ export default function Uploader({
         ref={inputRef}
         type="file"
         accept="image/*"
+        multiple
         onChange={onChange}
         className="hidden"
       />
