@@ -25,7 +25,7 @@
 
   ::selection { background: rgba(16,185,129,0.22); }
 
-  /* Scrollbar */
+  /* Scrollbar (기본 얇은 스크롤바) */
   * { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
   *::-webkit-scrollbar { width: 10px; height: 10px; }
   *::-webkit-scrollbar-thumb {
@@ -80,4 +80,8 @@
 @layer utilities {
   .text-balance { text-wrap: balance; }
   .max-w-prose { max-width: 65ch; }
+
+  /* 개별 영역에서 스크롤바 숨기기 (히어로 슬라이더용) */
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
 }
