@@ -32,10 +32,10 @@ export default function Home() {
       ) : null}
 
       <h1 className="text-6xl md:text-7xl font-extrabold tracking-tight drop-shadow-lg">
-        디비슐랭
+        DB ON
       </h1>
       <p className="mt-6 text-lg md:text-xl text-emerald-100">
-        전국의 진짜 맛, 현장이 증명합니다.
+        우리들의 이야기를 시작합니다.
       </p>
       <Link
         href="/regions"
