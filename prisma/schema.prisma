@@ -23,18 +23,21 @@ model Place {
   slug          String    @unique
   region        Region    @relation(fields: [regionId], references: [id])
   regionId      Int
+
   avgRating     Float     @default(0)
   reviewsCount  Int       @default(0)
   reviews       Review[]
 
   address       String?
   mapUrl        String?
-  coverImage    String?
 
-  // 새로 추가한 필드들
-  description   String?    @db.Text   // 소개글
-  author        String?               // 작성자 이름
-  ownerPassHash String?               // 수정/삭제용 비밀번호 해시
+  /// ✅ 대표/갤러리 이미지 여러 장
+  coverImages   String[]  @default([])
+
+  /// 소개/작성/비번
+  description   String?    @db.Text
+  author        String?
+  ownerPassHash String?
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -47,11 +50,13 @@ model Review {
 
   rating    Float
   content   String
+  author    String?
 
-  // 선택 필드
-  author    String?     // 닉네임
-  imageUrl  String?     // 리뷰 이미지 URL
-  pin       String?     // 수정/삭제용 비밀번호(간단 보호)
+  /// ✅ 리뷰 이미지 여러 장
+  imageUrls String[] @default([])
+
+  /// 간단 보호용 PIN(비밀번호)
+  pin       String?
 
   createdAt DateTime @default(now())
 }
@@ -60,7 +65,7 @@ model Review {
 // 🔸 랜딩/관리자 설정 보관용
 //
 model Setting {
-  key       String   @id          // 예: "heroUrl"
-  value     String?               // 값(예: 이미지 URL)
+  key       String   @id          // 예: "heroUrl", "seasonTitle"
+  value     String?               // 값(예: 이미지 URL 또는 텍스트)
   updatedAt DateTime @updatedAt
 }
