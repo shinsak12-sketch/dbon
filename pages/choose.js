@@ -6,7 +6,7 @@ export default function Choose() {
       <div className="max-w-xl mx-auto px-6 py-16">
         <header className="text-center">
           <h1 className="text-3xl md:text-4xl font-extrabold text-emerald-800">
-            무엇을 하시겠어요?
+            DB ON
           </h1>
           <p className="mt-2 text-gray-600">
             아래에서 서비스를 선택하세요.
@@ -39,7 +39,7 @@ export default function Choose() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-teal-800">디비온 챔피언쉽</h2>
+                <h2 className="text-xl font-bold text-teal-800">디비온 챔피언십</h2>
                 <p className="mt-1 text-sm text-gray-600">
                   스크린골프 랭킹 및 리그 (준비 중)
                 </p>
