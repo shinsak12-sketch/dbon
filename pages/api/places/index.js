@@ -34,6 +34,26 @@ async function findPlaceByIdOrSlug({ id, slug }) {
   return null;
 }
 
+/** 이미지 입력 정규화: coverImages[] 우선, 없으면 coverImage 단일 → [] 변환 */
+function normalizeCoverImages(body) {
+  const { coverImages, coverImage } = body || {};
+  if (Array.isArray(coverImages)) {
+    return coverImages
+      .map((u) => String(u || "").trim())
+      .filter((u) => u.length > 0);
+  }
+  if (coverImage && String(coverImage).trim()) {
+    return [String(coverImage).trim()];
+  }
+  return [];
+}
+
+/** 비번 입력 호환: ownerPass | password */
+function getPasswordFromBody(body) {
+  const { ownerPass, password } = body || {};
+  return String(ownerPass ?? password ?? "");
+}
+
 export default async function handler(req, res) {
   // -------------------- 생성 --------------------
   if (req.method === "POST") {
@@ -46,9 +66,8 @@ export default async function handler(req, res) {
         author,
         address,
         mapUrl,
-        coverImage,         // 선택
-        ownerPass,          // 선택
-        // 호환 입력
+        // 이미지: coverImages(권장) | coverImage(하위호환)
+        // ownerPass(권장) | password(하위호환)
         slug: providedSlug, // 예전 API가 넘기던 값(있으면 그대로 사용)
         region,             // 숫자 id (과거 방식)
       } = req.body || {};
@@ -62,16 +81,16 @@ export default async function handler(req, res) {
       if (!regionId) return res.status(400).json({ error: "REGION_REQUIRED" });
 
       // 비밀번호 해시(선택)
+      const rawPass = getPasswordFromBody(req.body);
       let ownerPassHash = null;
-      if (ownerPass && String(ownerPass).trim()) {
-        ownerPassHash = await bcrypt.hash(String(ownerPass).trim(), 10);
+      if (rawPass.trim()) {
+        ownerPassHash = await bcrypt.hash(rawPass.trim(), 10);
       }
 
       // slug 결정: 제공되면 사용, 없으면 생성
       let slug = (providedSlug && String(providedSlug).trim()) || null;
       if (!slug) {
         const base = slugifyBase(name) || "place";
-        // regionSlug가 있으면 prefix로 쓰고, 없으면 regionId만으로도 고유성 충분
         const prefix = regionSlug ? `${regionSlug}-` : "";
         slug = `${prefix}${base}`.slice(0, 80);
         let n = 0;
@@ -83,6 +102,9 @@ export default async function handler(req, res) {
         }
       }
 
+      // 이미지 정규화
+      const imgs = normalizeCoverImages(req.body);
+
       const place = await prisma.place.create({
         data: {
           name: String(name).trim(),
@@ -92,10 +114,8 @@ export default async function handler(req, res) {
           author: author ? String(author) : null,
           address: address ? String(address) : null,
           mapUrl: mapUrl ? String(mapUrl) : null,
-          coverImage:
-            coverImage && String(coverImage).trim()
-              ? String(coverImage).trim()
-              : null, // 선택
+          // 🔥 다중 이미지 배열
+          coverImages: imgs,
           ownerPassHash,
         },
         select: { id: true, slug: true },
@@ -117,38 +137,42 @@ export default async function handler(req, res) {
         name,
         address,
         mapUrl,
-        coverImage,
         description,
         author,
-        ownerPass,     // 검증용
       } = req.body || {};
 
       const place = await findPlaceByIdOrSlug({ id, slug });
       if (!place) return res.status(404).json({ error: "NOT_FOUND" });
 
-      // 비밀번호 검증(기존 유지)
-      const valid = await bcrypt.compare(
-        String(ownerPass || ""),
-        String(place.ownerPassHash || "")
-      );
+      // 비밀번호 검증(소유자 보호)
+      const rawPass = getPasswordFromBody(req.body);
+      const hasHash = Boolean(place.ownerPassHash);
+      if (!hasHash) {
+        // 등록 당시 비번 미설정이라면 수정 불가로 막음
+        return res.status(403).json({ error: "NO_PASSWORD_SET" });
+      }
+      const valid = await bcrypt.compare(String(rawPass || ""), String(place.ownerPassHash || ""));
       if (!valid) return res.status(403).json({ error: "INVALID_PASSWORD" });
+
+      // 이미지 정규화(넘겨주면 갱신, 안 넘기면 그대로)
+      let dataToUpdate = {
+        name: name ?? place.name,
+        address: address ?? place.address,
+        mapUrl: mapUrl ?? place.mapUrl,
+        description: description ?? place.description,
+        author: author ?? place.author,
+      };
+
+      if ("coverImages" in req.body || "coverImage" in req.body) {
+        dataToUpdate.coverImages = normalizeCoverImages(req.body);
+      }
 
       await prisma.place.update({
         where: { id: place.id },
-        data: {
-          name: name ?? place.name,
-          address: address ?? place.address,
-          mapUrl: mapUrl ?? place.mapUrl,
-          coverImage:
-            coverImage !== undefined
-              ? coverImage || null
-              : place.coverImage,
-          description: description ?? place.description,
-          author: author ?? place.author,
-        },
+        data: dataToUpdate,
       });
 
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, slug: place.slug });
     } catch (e) {
       console.error("Error updating place:", e);
       return res.status(500).json({ error: "SERVER_ERROR" });
@@ -158,15 +182,17 @@ export default async function handler(req, res) {
   // -------------------- 삭제 --------------------
   if (req.method === "DELETE") {
     try {
-      const { id, slug, ownerPass } = req.body || {};
+      const { id, slug } = req.body || {};
 
       const place = await findPlaceByIdOrSlug({ id, slug });
       if (!place) return res.status(404).json({ error: "NOT_FOUND" });
 
-      const valid = await bcrypt.compare(
-        String(ownerPass || ""),
-        String(place.ownerPassHash || "")
-      );
+      const rawPass = getPasswordFromBody(req.body);
+      const hasHash = Boolean(place.ownerPassHash);
+      if (!hasHash) {
+        return res.status(403).json({ error: "NO_PASSWORD_SET" });
+      }
+      const valid = await bcrypt.compare(String(rawPass || ""), String(place.ownerPassHash || ""));
       if (!valid) return res.status(403).json({ error: "INVALID_PASSWORD" });
 
       await prisma.place.delete({ where: { id: place.id } });
@@ -179,4 +205,4 @@ export default async function handler(req, res) {
 
   res.setHeader("Allow", ["POST", "PUT", "DELETE"]);
   return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
-                                   }
+}
