@@ -165,14 +165,6 @@ export default function PlaceDetail({ place }) {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={onShare}
-                className="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-gray-50"
-                aria-label="공유"
-              >
-                공유
-              </button>
-
               {/* ⋯ 메뉴 버튼 */}
               <button
                 onClick={() => setMenuOpen((v) => !v)}
@@ -184,7 +176,13 @@ export default function PlaceDetail({ place }) {
 
               {/* 드롭다운 */}
               {menuOpen && (
-                <div className="absolute right-0 top-12 z-10 w-36 overflow-hidden rounded-xl border bg-white shadow-lg">
+                <div className="absolute right-0 top-12 z-10 w-40 overflow-hidden rounded-xl border bg-white shadow-lg">
+                  <button
+                    onClick={() => { onShare(); setMenuOpen(false); }}
+                    className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-50"
+                  >
+                    공유하기
+                  </button>
                   <button
                     onClick={goEdit}
                     className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-50"
@@ -256,7 +254,7 @@ export default function PlaceDetail({ place }) {
         <div className="mt-6">
           <h2 className="text-lg font-semibold">리뷰</h2>
           {(!place.reviews || place.reviews.length === 0) && (
-            <div className="mt-3 rounded-xl border bg-white p-5 text-gray-600">
+            <div className="mt-3 rounded-2xl border bg-white p-5 text-gray-600">
               아직 리뷰가 없습니다. 첫 리뷰의 주인공이 되어 주세요!
             </div>
           )}
@@ -327,4 +325,4 @@ export default function PlaceDetail({ place }) {
       )}
     </main>
   );
-                }
+}
