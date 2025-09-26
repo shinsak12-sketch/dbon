@@ -29,15 +29,15 @@ export async function getServerSideProps({ params }) {
 export default function RegionDetail({ region, places }) {
   return (
     <main className="max-w-3xl mx-auto p-6">
-      <h1 className="text-3xl font-extrabold text-emerald-800">
-        {region.name} 맛집
-      </h1>
+      {/* ⬇️ 제목 + 버튼을 같은 줄에 배치 */}
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-3xl font-extrabold text-emerald-800">
+          {region.name} 맛집
+        </h1>
 
-      {/* 등록 버튼 */}
-      <div className="mt-4">
         <Link
           href={`/places/${region.slug}/new`}
-          className="inline-block rounded-xl bg-emerald-700 text-white px-4 py-2 font-semibold hover:bg-emerald-800"
+          className="shrink-0 rounded-xl bg-emerald-700 text-white px-4 py-2 text-sm font-semibold hover:bg-emerald-800"
         >
           맛집 등록하기
         </Link>
