@@ -5,8 +5,8 @@ import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
 
 export async function getServerSideProps({ params }) {
-  const regionSlug = params.slug;   // 지역 슬러그
-  const placeSlug  = params.place;  // 가게(맛집) 슬러그
+  const regionSlug = params.slug;
+  const placeSlug  = params.place;
 
   const place = await prisma.place.findUnique({
     where: { slug: placeSlug },
@@ -52,11 +52,15 @@ export default function PlaceDetail({ place }) {
   const [imgErr, setImgErr] = useState(false);
   const hasImage = !!place.coverImage && /^https?:\/\//i.test(place.coverImage);
 
-  // 메뉴/삭제 모달 상태
+  // 메뉴/삭제/수정 모달 상태
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePwd, setDeletePwd] = useState("");
   const [deleting, setDeleting] = useState(false);
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editPwd, setEditPwd] = useState("");
+  const [editing, setEditing] = useState(false);
 
   const shareUrl = useMemo(() => {
     if (typeof window !== "undefined") return window.location.href;
@@ -87,10 +91,29 @@ export default function PlaceDetail({ place }) {
     } catch {}
   };
 
-  // 편집/삭제 동작
-  const goEdit = () => {
+  // 수정 시작: 비밀번호 모달 열기
+  const openEdit = () => {
     setMenuOpen(false);
-    router.push(`/places/${place.slug}/edit`);
+    setEditOpen(true);
+    setEditPwd("");
+  };
+
+  // 수정 확정: 비번을 세션에 저장 후 등록화면(edit 모드)로 이동
+  const confirmEdit = () => {
+    if (!editPwd.trim()) {
+      alert("수정 비밀번호를 입력해 주세요.");
+      return;
+    }
+    setEditing(true);
+    try {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(`placeEditPw:${place.slug}`, editPwd.trim());
+      }
+      router.push(`/places/${regionSlug}/new?edit=${place.slug}`);
+    } finally {
+      setEditing(false);
+      setEditOpen(false);
+    }
   };
 
   const doDelete = async () => {
@@ -110,7 +133,6 @@ export default function PlaceDetail({ place }) {
         alert(data?.error || "삭제 실패");
         return;
       }
-      // ✅ 삭제 후 지역 목록으로 이동
       router.replace(`/regions/${regionSlug}`);
     } finally {
       setDeleting(false);
@@ -184,7 +206,7 @@ export default function PlaceDetail({ place }) {
                     공유하기
                   </button>
                   <button
-                    onClick={goEdit}
+                    onClick={openEdit}
                     className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-50"
                   >
                     수정하기
@@ -251,6 +273,7 @@ export default function PlaceDetail({ place }) {
           </div>
         </div>
 
+        {/* 리뷰 리스트 */}
         <div className="mt-6">
           <h2 className="text-lg font-semibold">리뷰</h2>
           {(!place.reviews || place.reviews.length === 0) && (
@@ -277,7 +300,7 @@ export default function PlaceDetail({ place }) {
                       alt="review"
                       className="w-full rounded-xl border"
                       onError={(e) => {
-                        e.currentTarget.style.display = "none"; // 깨지면 숨김
+                        e.currentTarget.style.display = "none";
                       }}
                     />
                   </div>
@@ -323,6 +346,41 @@ export default function PlaceDetail({ place }) {
           </div>
         </div>
       )}
+
+      {/* 수정 비밀번호 모달 */}
+      {editOpen && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5">
+            <h3 className="text-lg font-bold">맛집 수정</h3>
+            <p className="mt-1 text-sm text-gray-600">등록 시 설정한 비밀번호를 입력하세요.</p>
+
+            <input
+              type="password"
+              value={editPwd}
+              onChange={(e) => setEditPwd(e.target.value)}
+              placeholder="비밀번호"
+              className="mt-4 w-full rounded-lg border p-3"
+              autoFocus
+            />
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+                onClick={() => { setEditOpen(false); setEditPwd(""); }}
+              >
+                취소
+              </button>
+              <button
+                disabled={editing}
+                onClick={confirmEdit}
+                className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
+              >
+                {editing ? "확인 중…" : "확인"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
-}
+          }
