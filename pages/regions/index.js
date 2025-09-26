@@ -14,7 +14,7 @@ export default function Regions({ regions }) {
     <main className="max-w-3xl mx-auto p-6">
       {/* 상단 제목 + 선택화면 버튼 */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-extrabold text-emerald-800">디비슐랭 네트워크</h1>
+        <h1 className="text-3xl font-extrabold text-emerald-800">지역 선택</h1>
         <Link
   href="/choose"
   className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-gray-50"
@@ -23,7 +23,7 @@ export default function Regions({ regions }) {
 </Link>
       </div>
 
-      <p className="text-gray-500 mt-2">맛 보고 싶은 지역을 선택하세요</p>
+      <p className="text-gray-500 mt-2">보고 싶은 지역을 선택하세요</p>
 
       {regions.length === 0 && (
         <div className="mt-10 rounded-xl border p-6 bg-white">
