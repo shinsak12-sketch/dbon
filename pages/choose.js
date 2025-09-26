@@ -9,7 +9,7 @@ export default function Choose() {
             DB ON
           </h1>
           <p className="mt-2 text-gray-600">
-            아래에서 서비스를 선택하세요.
+            서비스를 선택하세요.
           </p>
         </header>
 
