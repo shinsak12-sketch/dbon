@@ -148,27 +148,26 @@ export default function PlaceDetail({ place }) {
   return (
     <main className="mx-auto max-w-2xl">
       {/* 히어로(커버) — 여러 장 가로 스크롤 */}
-      <div className="relative">
-        {hasImages ? (
-          <div className="w-full h-56 overflow-x-auto flex gap-2 p-2">
-            {coverImages.map((url, idx) =>
-              !imgErr[idx] && /^https?:\/\//i.test(url) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={idx}
-                  src={url}
-                  alt={`${place.name} 이미지 ${idx + 1}`}
-                  className="h-52 w-auto flex-shrink-0 rounded-lg object-cover border"
-                  onError={() => setImgErr((e) => ({ ...e, [idx]: true }))}
-                />
-              ) : null
-            )}
-          </div>
-        ) : (
-          <div className="h-56 w-full flex items-center justify-center bg-gray-100 text-gray-500">
-            등록된 이미지가 없습니다
-          </div>
-        )}
+<div className="relative">
+  {hasImages ? (
+    <div className="w-full h-56 overflow-x-auto flex gap-2 p-2">
+      {coverImages.map((url, idx) =>
+        !imgErr[idx] && /^https?:\/\//i.test(url) ? (
+          <img
+            key={idx}
+            src={url}
+            alt={`${place.name} 이미지 ${idx + 1}`}
+            className="h-52 w-auto flex-shrink-0 rounded-lg object-cover border"
+            onError={() => setImgErr((e) => ({ ...e, [idx]: true }))}
+          />
+        ) : null
+      )}
+    </div>
+  ) : (
+    <div className="h-56 w-full flex items-center justify-center bg-gray-100 text-gray-500">
+      등록된 이미지가 없습니다
+    </div>
+  )}
 
         {/* 상단 투명 헤더 영역 */}
         <div className="absolute inset-x-0 top-0 p-3 flex items-center justify-between">
@@ -268,23 +267,6 @@ export default function PlaceDetail({ place }) {
             </div>
           )}
 
-          {/* 본문 하단 썸네일 그리드 */}
-          {hasImages && (
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {coverImages.map((url, idx) =>
-                !imgErr[idx] && /^https?:\/\//i.test(url) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={idx}
-                    src={url}
-                    alt={`${place.name} 이미지 ${idx + 1}`}
-                    className="w-full h-32 object-cover rounded-lg border"
-                    onError={() => setImgErr((e) => ({ ...e, [idx]: true }))}
-                  />
-                ) : null
-              )}
-            </div>
-          )}
 
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Link
