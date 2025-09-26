@@ -30,6 +30,7 @@ export async function getServerSideProps({ params }) {
   return { props: { place } };
 }
 
+// (남겨둠: 별 표시용 — 필요 없으면 삭제해도 됨)
 function Stars({ value = 0, size = "text-lg" }) {
   const full = Math.floor(value);
   const half = value - full >= 0.5;
@@ -49,8 +50,10 @@ export default function PlaceDetail({ place }) {
   const addressText = place.address || "";
   const ratingText = (place.avgRating || 0).toFixed(1);
 
-  const [imgErr, setImgErr] = useState(false);
-  const hasImage = !!place.coverImage && /^https?:\/\//i.test(place.coverImage);
+  // 🔁 여러 이미지 에러 개별 관리
+  const [imgErr, setImgErr] = useState({});
+  const coverImages = Array.isArray(place.coverImages) ? place.coverImages : [];
+  const hasImages = coverImages.length > 0;
 
   // 메뉴/삭제/수정 모달 상태
   const [menuOpen, setMenuOpen] = useState(false);
@@ -144,15 +147,23 @@ export default function PlaceDetail({ place }) {
 
   return (
     <main className="mx-auto max-w-2xl">
-      {/* 히어로(커버) */}
+      {/* 히어로(커버) — 여러 장 가로 스크롤 */}
       <div className="relative">
-        {hasImage && !imgErr ? (
-          <img
-            src={place.coverImage}
-            alt={place.name}
-            className="h-56 w-full object-cover"
-            onError={() => setImgErr(true)}
-          />
+        {hasImages ? (
+          <div className="w-full h-56 overflow-x-auto flex gap-2 p-2">
+            {coverImages.map((url, idx) =>
+              !imgErr[idx] && /^https?:\/\//i.test(url) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={idx}
+                  src={url}
+                  alt={`${place.name} 이미지 ${idx + 1}`}
+                  className="h-52 w-auto flex-shrink-0 rounded-lg object-cover border"
+                  onError={() => setImgErr((e) => ({ ...e, [idx]: true }))}
+                />
+              ) : null
+            )}
+          </div>
         ) : (
           <div className="h-56 w-full flex items-center justify-center bg-gray-100 text-gray-500">
             등록된 이미지가 없습니다
@@ -257,6 +268,24 @@ export default function PlaceDetail({ place }) {
             </div>
           )}
 
+          {/* 본문 하단 썸네일 그리드 */}
+          {hasImages && (
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {coverImages.map((url, idx) =>
+                !imgErr[idx] && /^https?:\/\//i.test(url) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={idx}
+                    src={url}
+                    alt={`${place.name} 이미지 ${idx + 1}`}
+                    className="w-full h-32 object-cover rounded-lg border"
+                    onError={() => setImgErr((e) => ({ ...e, [idx]: true }))}
+                  />
+                ) : null
+              )}
+            </div>
+          )}
+
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Link
               href={`/places/${place.slug}/review`}
@@ -295,6 +324,7 @@ export default function PlaceDetail({ place }) {
                 </div>
                 {r.imageUrl && /^https?:\/\//i.test(r.imageUrl) && (
                   <div className="mt-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={r.imageUrl}
                       alt="review"
@@ -383,4 +413,4 @@ export default function PlaceDetail({ place }) {
       )}
     </main>
   );
-          }
+              }
