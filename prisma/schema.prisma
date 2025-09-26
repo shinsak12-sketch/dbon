@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -21,6 +19,7 @@ model Place {
   id            Int       @id @default(autoincrement())
   name          String
   slug          String    @unique
+
   region        Region    @relation(fields: [regionId], references: [id])
   regionId      Int
 
@@ -31,11 +30,14 @@ model Place {
   address       String?
   mapUrl        String?
 
-  /// ✅ 대표/갤러리 이미지 여러 장
+  // ✅ 레거시(단일) — 지금은 드랍하지 말 것
+  coverImage    String?
+
+  // ✅ 새 다중 이미지
   coverImages   String[]  @default([])
 
-  /// 소개/작성/비번
-  description   String?    @db.Text
+  // 소개/작성/비번
+  description   String?   @db.Text
   author        String?
   ownerPassHash String?
 
@@ -52,20 +54,20 @@ model Review {
   content   String
   author    String?
 
-  /// ✅ 리뷰 이미지 여러 장
-  imageUrls String[] @default([])
+  // ✅ 레거시(단일) — 지금은 드랍하지 말 것
+  imageUrl   String?
 
-  /// 간단 보호용 PIN(비밀번호)
+  // ✅ 새 다중 이미지
+  imageUrls  String[] @default([])
+
+  // 간단 보호용 PIN(비밀번호)
   pin       String?
 
   createdAt DateTime @default(now())
 }
 
-//
-// 🔸 랜딩/관리자 설정 보관용
-//
 model Setting {
   key       String   @id          // 예: "heroUrl", "seasonTitle"
-  value     String?               // 값(예: 이미지 URL 또는 텍스트)
+  value     String?
   updatedAt DateTime @updatedAt
 }
