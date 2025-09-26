@@ -31,9 +31,10 @@ export default function MyApp({ Component, pageProps }) {
           {isDBOn && (
             <header className="sticky top-0 z-40 bg-emerald-800 text-white">
               <div className="mx-auto max-w-3xl px-4 py-3 flex items-center gap-3">
-                <Link href="/regions" className="font-extrabold text-xl whitespace-nowrap">
-                  디비슐랭
-                </Link>
+                {/* ✅ 로고 클릭 → /choose 로 이동 */}
+<Link href="/choose" className="font-extrabold text-xl whitespace-nowrap">
+  DB ON
+</Link>
 
                 <div className="flex-1 flex items-center gap-2">
                   <input
