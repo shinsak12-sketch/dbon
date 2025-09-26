@@ -12,7 +12,17 @@ export async function getServerSideProps() {
 export default function Regions({ regions }) {
   return (
     <main className="max-w-3xl mx-auto p-6">
-      <h1 className="text-3xl font-extrabold text-emerald-800">지역 선택</h1>
+      {/* 상단 제목 + 선택화면 버튼 */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-extrabold text-emerald-800">지역 선택</h1>
+        <Link
+          href="/select"
+          className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-gray-50"
+        >
+          ← 선택으로
+        </Link>
+      </div>
+
       <p className="text-gray-500 mt-2">보고 싶은 지역을 선택하세요</p>
 
       {regions.length === 0 && (
