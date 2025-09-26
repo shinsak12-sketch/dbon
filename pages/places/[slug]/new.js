@@ -36,14 +36,14 @@ export default function NewPlace({ region }) {
   const isEdit = Boolean(editSlug);
 
   const [form, setForm] = useState({
-    name: "",
-    address: "",
-    mapUrl: "",
-    coverImage: "",
-    description: "",
-    author: "",
-    ownerPass: "", // 등록 시 설정(선택)
-  });
+  name: "",
+  address: "",
+  mapUrl: "",
+  coverImages: [],   // 🔥 배열로 변경
+  description: "",
+  author: "",
+  ownerPass: "",
+});
 
   // 수정용 비밀번호(수정 시 필수)
   const [editPassword, setEditPassword] = useState("");
@@ -64,8 +64,9 @@ export default function NewPlace({ region }) {
       [e.target.name]: e.target.value,
     }));
 
-  // 업로더 콜백
-  const onUploaded = (url) => setForm((f) => ({ ...f, coverImage: url || "" }));
+  // 업로더 콜백 (여러 장)
+const onUploaded = (urls) =>
+  setForm((f) => ({ ...f, coverImages: urls || [] }));
 
   // 네이버에서 찾기 버튼 토글 (가게명 아래)
   const toggleSearch = () => setSearchOpen((v) => !v);
@@ -122,16 +123,14 @@ export default function NewPlace({ region }) {
           return;
         }
         setForm((f) => ({
-          ...f,
-          name: data.name || "",
-          address: data.address || "",
-          mapUrl: data.mapUrl || "",
-          coverImage: data.coverImage || "",
-          description: data.description || "",
-          author: data.author || "",
-          // ownerPass는 수정 시 변경할 일 거의 없으므로 비워둠 (원하면 아래 주석 해제)
-          // ownerPass: ""
-        }));
+  ...f,
+  name: data.name || "",
+  address: data.address || "",
+  mapUrl: data.mapUrl || "",
+  coverImages: data.coverImages || [],   // 🔥 배열 반영
+  description: data.description || "",
+  author: data.author || "",
+}));
       } catch (e) {
         console.error(e);
         alert("네트워크 오류");
@@ -188,9 +187,9 @@ export default function NewPlace({ region }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            regionSlug: region.slug,
-            ...form, // coverImage는 선택사항
-          }),
+  regionSlug: region.slug,
+  ...form, // coverImages 배열 포함
+}),
         });
         const data = await r.json();
         if (!r.ok) {
@@ -318,13 +317,17 @@ export default function NewPlace({ region }) {
 
         {/* 이미지 첨부 (선택) */}
         <div className="mt-6">
-          <Label>이미지 첨부 (선택)</Label>
-          <div className="mt-2">
-            <Uploader onUploaded={onUploaded} label="이미지 선택" defaultUrl={form.coverImage} />
-          </div>
-          {/* URL 입력칸은 숨기고 값만 폼에 유지 */}
-          <input type="hidden" name="coverImage" value={form.coverImage || ""} />
-        </div>
+  <Label>이미지 첨부 (선택)</Label>
+  <div className="mt-2">
+    <Uploader
+      onUploaded={onUploaded}
+      label="이미지 선택"
+      defaultUrls={form.coverImages}   // 🔥 여러 장 기본값
+    />
+  </div>
+  {/* URL 배열을 hidden input에 JSON 문자열로 저장 */}
+  <input type="hidden" name="coverImages" value={JSON.stringify(form.coverImages || [])} />
+</div>
 
         {/* 소개글 / 작성자 */}
         <div className="mt-6">
