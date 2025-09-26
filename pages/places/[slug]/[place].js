@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 
 export async function getServerSideProps({ params }) {
   const regionSlug = params.slug;
-  const placeSlug  = params.place;
+  const placeSlug = params.place;
 
   const place = await prisma.place.findUnique({
     where: { slug: placeSlug },
@@ -30,7 +30,7 @@ export async function getServerSideProps({ params }) {
   return { props: { place } };
 }
 
-// (남겨둠: 별 표시용 — 필요 없으면 삭제해도 됨)
+// (옵션) 별 표시용
 function Stars({ value = 0, size = "text-lg" }) {
   const full = Math.floor(value);
   const half = value - full >= 0.5;
@@ -50,12 +50,19 @@ export default function PlaceDetail({ place }) {
   const addressText = place.address || "";
   const ratingText = (place.avgRating || 0).toFixed(1);
 
-  // 🔁 여러 이미지 에러 개별 관리
-  const [imgErr, setImgErr] = useState({});
-  const coverImages = Array.isArray(place.coverImages) ? place.coverImages : [];
-  const hasImages = coverImages.length > 0;
+  // 🖼️ 커버 이미지(배열) + 레거시 단일 필드 호환
+  const legacyCover =
+    place.coverImage && /^https?:\/\//i.test(place.coverImage)
+      ? [place.coverImage]
+      : [];
+  const coverImages = Array.isArray(place.coverImages) && place.coverImages.length
+    ? place.coverImages
+    : legacyCover;
 
-  // 메뉴/삭제/수정 모달 상태
+  const hasImages = coverImages.length > 0;
+  const [imgErr, setImgErr] = useState({}); // 각 이미지별 에러 상태
+
+  // 메뉴/삭제/수정 모달
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePwd, setDeletePwd] = useState("");
@@ -94,14 +101,14 @@ export default function PlaceDetail({ place }) {
     } catch {}
   };
 
-  // 수정 시작: 비밀번호 모달 열기
+  // 수정 시작
   const openEdit = () => {
     setMenuOpen(false);
     setEditOpen(true);
     setEditPwd("");
   };
 
-  // 수정 확정: 비번을 세션에 저장 후 등록화면(edit 모드)로 이동
+  // 수정 확인 → 비번 세션 저장 후 edit 모드로 이동
   const confirmEdit = () => {
     if (!editPwd.trim()) {
       alert("수정 비밀번호를 입력해 주세요.");
@@ -119,6 +126,7 @@ export default function PlaceDetail({ place }) {
     }
   };
 
+  // 삭제
   const doDelete = async () => {
     if (!deletePwd.trim()) {
       alert("삭제 비밀번호를 입력해 주세요.");
@@ -145,35 +153,42 @@ export default function PlaceDetail({ place }) {
     }
   };
 
+  // 리뷰 이미지 첫 장(배열/레거시 모두 지원)
+  const firstReviewImage = (r) => {
+    if (r.imageUrl && /^https?:\/\//i.test(r.imageUrl)) return r.imageUrl; // 레거시
+    if (Array.isArray(r.imageUrls) && r.imageUrls.length) {
+      const u = r.imageUrls.find((x) => /^https?:\/\//i.test(x));
+      return u || null;
+    }
+    return null;
+  };
+
   return (
     <main className="mx-auto max-w-2xl">
       {/* 히어로(커버) — 한 장씩 스와이프 */}
-<div className="relative">
-  {hasImages ? (
-    <div className="w-full h-56 overflow-x-auto flex snap-x snap-mandatory scroll-smooth no-scrollbar">
-      {coverImages.map((url, idx) =>
-        !imgErr[idx] && /^https?:\/\//i.test(url) ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={idx}
-            src={url}
-            alt={`${place.name} 이미지 ${idx + 1}`}
-            className="h-56 w-full min-w-full flex-shrink-0 object-cover"
-            onError={() => setImgErr((e) => ({ ...e, [idx]: true }))}
-          />
-        ) : null
-      )}
-    </div>
-  ) : (
-    <div className="h-56 w-full flex items-center justify-center bg-gray-100 text-gray-500">
-      등록된 이미지가 없습니다
-    </div>
-  )}
+      <div className="relative">
+        {hasImages ? (
+          <div className="w-full h-56 overflow-x-auto flex snap-x snap-mandatory scroll-smooth">
+            {coverImages.map((url, idx) =>
+              !imgErr[idx] && /^https?:\/\//i.test(url) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={idx}
+                  src={url}
+                  alt={`${place.name} 이미지 ${idx + 1}`}
+                  className="h-56 w-full min-w-full flex-shrink-0 object-cover"
+                  onError={() => setImgErr((e) => ({ ...e, [idx]: true }))}
+                />
+              ) : null
+            )}
+          </div>
+        ) : (
+          <div className="h-56 w-full flex items-center justify-center bg-gray-100 text-gray-500">
+            등록된 이미지가 없습니다
+          </div>
+        )}
 
-  {/* 상단 투명 헤더 영역 ... (이하 동일) */}
-</div>
-
-        {/* 상단 투명 헤더 영역 */}
+        {/* 상단 투명 헤더 */}
         <div className="absolute inset-x-0 top-0 p-3 flex items-center justify-between">
           <button
             onClick={() => router.push(`/regions/${regionSlug}`)}
@@ -201,7 +216,7 @@ export default function PlaceDetail({ place }) {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* ⋯ 메뉴 버튼 */}
+              {/* ⋯ 메뉴 */}
               <button
                 onClick={() => setMenuOpen((v) => !v)}
                 className="rounded-xl border px-3 py-2 text-xl leading-none hover:bg-gray-50"
@@ -210,11 +225,13 @@ export default function PlaceDetail({ place }) {
                 ⋯
               </button>
 
-              {/* 드롭다운 */}
               {menuOpen && (
                 <div className="absolute right-0 top-12 z-10 w-40 overflow-hidden rounded-xl border bg-white shadow-lg">
                   <button
-                    onClick={() => { onShare(); setMenuOpen(false); }}
+                    onClick={() => {
+                      onShare();
+                      setMenuOpen(false);
+                    }}
                     className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-50"
                   >
                     공유하기
@@ -226,7 +243,10 @@ export default function PlaceDetail({ place }) {
                     수정하기
                   </button>
                   <button
-                    onClick={() => { setMenuOpen(false); setDeleteOpen(true); }}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setDeleteOpen(true);
+                    }}
                     className="block w-full px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50"
                   >
                     삭제하기
@@ -271,7 +291,6 @@ export default function PlaceDetail({ place }) {
             </div>
           )}
 
-
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Link
               href={`/places/${place.slug}/review`}
@@ -297,33 +316,38 @@ export default function PlaceDetail({ place }) {
             </div>
           )}
           <ul className="mt-3 space-y-3">
-            {place.reviews?.map((r) => (
-              <li key={r.id} className="rounded-2xl border bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-yellow-500 font-bold">★ {r.rating}</span>
-                    {r.author && <span className="text-sm text-gray-600">· {r.author}</span>}
+            {place.reviews?.map((r) => {
+              const firstImg = firstReviewImage(r);
+              return (
+                <li key={r.id} className="rounded-2xl border bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-yellow-500 font-bold">★ {r.rating}</span>
+                      {r.author && <span className="text-sm text-gray-600">· {r.author}</span>}
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      {new Date(r.createdAt).toLocaleDateString("ko-KR")}
+                    </span>
                   </div>
-                  <span className="text-xs text-gray-400">
-                    {new Date(r.createdAt).toLocaleDateString("ko-KR")}
-                  </span>
-                </div>
-                {r.imageUrl && /^https?:\/\//i.test(r.imageUrl) && (
-                  <div className="mt-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={r.imageUrl}
-                      alt="review"
-                      className="w-full rounded-xl border"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                  </div>
-                )}
-                <p className="mt-3 text-gray-800 whitespace-pre-line">{r.content}</p>
-              </li>
-            ))}
+
+                  {firstImg && (
+                    <div className="mt-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={firstImg}
+                        alt="review"
+                        className="w-full rounded-xl border"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <p className="mt-3 text-gray-800 whitespace-pre-line">{r.content}</p>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </section>
@@ -347,7 +371,10 @@ export default function PlaceDetail({ place }) {
             <div className="mt-4 flex justify-end gap-2">
               <button
                 className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
-                onClick={() => { setDeleteOpen(false); setDeletePwd(""); }}
+                onClick={() => {
+                  setDeleteOpen(false);
+                  setDeletePwd("");
+                }}
               >
                 취소
               </button>
@@ -382,7 +409,10 @@ export default function PlaceDetail({ place }) {
             <div className="mt-4 flex justify-end gap-2">
               <button
                 className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
-                onClick={() => { setEditOpen(false); setEditPwd(""); }}
+                onClick={() => {
+                  setEditOpen(false);
+                  setEditPwd("");
+                }}
               >
                 취소
               </button>
@@ -399,4 +429,4 @@ export default function PlaceDetail({ place }) {
       )}
     </main>
   );
-              }
+                }
