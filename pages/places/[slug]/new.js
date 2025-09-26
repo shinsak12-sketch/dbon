@@ -31,6 +31,10 @@ export default function NewPlace({ region }) {
   const router = useRouter();
   const nameRef = useRef(null);
 
+  // edit 모드 여부: /places/[region]/new?edit=[placeSlug]
+  const editSlug = typeof router.query.edit === "string" ? router.query.edit : "";
+  const isEdit = Boolean(editSlug);
+
   const [form, setForm] = useState({
     name: "",
     address: "",
@@ -38,8 +42,12 @@ export default function NewPlace({ region }) {
     coverImage: "",
     description: "",
     author: "",
-    ownerPass: "",
+    ownerPass: "", // 등록 시 설정(선택)
   });
+
+  // 수정용 비밀번호(수정 시 필수)
+  const [editPassword, setEditPassword] = useState("");
+
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -102,40 +110,100 @@ export default function NewPlace({ region }) {
     setSearchOpen(false);
   };
 
+  // ▶️ edit 모드면 기존 데이터 불러오기
+  useEffect(() => {
+    if (!isEdit || !editSlug) return;
+    (async () => {
+      try {
+        const r = await fetch(`/api/places/${editSlug}`);
+        const data = await r.json();
+        if (!r.ok) {
+          alert(data?.error || "로드 실패");
+          return;
+        }
+        setForm((f) => ({
+          ...f,
+          name: data.name || "",
+          address: data.address || "",
+          mapUrl: data.mapUrl || "",
+          coverImage: data.coverImage || "",
+          description: data.description || "",
+          author: data.author || "",
+          // ownerPass는 수정 시 변경할 일 거의 없으므로 비워둠 (원하면 아래 주석 해제)
+          // ownerPass: ""
+        }));
+      } catch (e) {
+        console.error(e);
+        alert("네트워크 오류");
+      }
+    })();
+  }, [isEdit, editSlug]);
+
   // 제출
   const onSubmit = async (e) => {
     e.preventDefault();
+
     if (!form.name.trim()) {
       alert("가게명을 입력해 주세요.");
       nameRef.current?.focus();
       return;
     }
-    if (!agree) {
-      alert("안내에 동의해 주세요.");
-      return;
+
+    if (isEdit) {
+      // 수정 모드 → 비번 필수
+      if (!editPassword.trim()) {
+        alert("수정 비밀번호를 입력해 주세요.");
+        return;
+      }
+    } else {
+      // 등록 모드 → 안내 동의 필요
+      if (!agree) {
+        alert("안내에 동의해 주세요.");
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
-      const r = await fetch("/api/places", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          regionSlug: region.slug,
-          ...form, // coverImage는 선택사항
-        }),
-      });
-      const data = await r.json();
-      if (!r.ok) {
-        alert(data?.error || "등록 실패");
-        return;
+      if (isEdit) {
+        // PUT /api/places/[placeSlug]
+        const r = await fetch(`/api/places/${editSlug}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...form,
+            password: editPassword, // 서버에서 ownerPassHash 검증
+          }),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          alert(data?.error || "수정 실패");
+          return;
+        }
+        // 상세로 이동
+        router.replace(`/places/${region.slug}/${data.slug || editSlug}`);
+      } else {
+        // POST /api/places
+        const r = await fetch("/api/places", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            regionSlug: region.slug,
+            ...form, // coverImage는 선택사항
+          }),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          alert(data?.error || "등록 실패");
+          return;
+        }
+        // 등록 성공 → 성공 페이지로
+        router.replace(
+          `/places/success?region=${encodeURIComponent(region.slug)}&place=${encodeURIComponent(
+            data.place.slug
+          )}`
+        );
       }
-      // ✅ 성공 페이지로: 두 단계 라우트에 맞춰 place & region 같이 전달
-      // ...생략...
-// ✂️ region + place 두 개의 쿼리로 전달
-router.replace(
-  `/places/success?region=${encodeURIComponent(region.slug)}&place=${encodeURIComponent(data.place.slug)}`
-);
     } catch (e) {
       console.error(e);
       alert("네트워크 오류");
@@ -147,8 +215,12 @@ router.replace(
   return (
     <main className="mx-auto max-w-2xl p-6">
       <div className="mb-4">
-        <h1 className="text-3xl font-extrabold text-emerald-800">맛집 등록</h1>
-        <p className="mt-1 text-gray-600">정확한 정보일수록 모두에게 도움이 됩니다 🙌</p>
+        <h1 className="text-3xl font-extrabold text-emerald-800">
+          {isEdit ? "맛집 수정" : "맛집 등록"}
+        </h1>
+        {!isEdit && (
+          <p className="mt-1 text-gray-600">정확한 정보일수록 모두에게 도움이 됩니다 🙌</p>
+        )}
       </div>
 
       <form onSubmit={onSubmit} className="rounded-2xl border bg-white p-6 shadow-sm">
@@ -166,53 +238,53 @@ router.replace(
           />
 
           {/* 가게명 바로 아래: 네이버에서 찾기 */}
-          <div className="mt-2">
-            <button
-              type="button"
-              onClick={toggleSearch}
-              className="rounded-xl bg-emerald-700 px-4 py-2 font-semibold text-white hover:bg-emerald-800"
-            >
-              네이버에서 찾기
-            </button>
+          {!isEdit && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={toggleSearch}
+                className="rounded-xl bg-emerald-700 px-4 py-2 font-semibold text-white hover:bg-emerald-800"
+              >
+                네이버에서 찾기
+              </button>
 
-            {searchOpen && (
-              <div className="mt-3 rounded-xl border p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">
-                    가게명을 타이핑하면 자동으로 검색됩니다.
-                  </span>
-                  {searching && <span className="text-xs text-gray-400">검색 중…</span>}
+              {searchOpen && (
+                <div className="mt-3 rounded-xl border p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">가게명을 타이핑하면 자동으로 검색됩니다.</span>
+                    {searching && <span className="text-xs text-gray-400">검색 중…</span>}
+                  </div>
+
+                  {/* 드롭다운 결과 */}
+                  {results.length > 0 && (
+                    <ul className="mt-3 divide-y rounded-xl border">
+                      {results.map((item, idx) => {
+                        const title = String(item.title || "").replace(/<[^>]+>/g, "");
+                        return (
+                          <li
+                            key={idx}
+                            className="cursor-pointer p-3 hover:bg-gray-50"
+                            onClick={() => selectPlace(item)}
+                          >
+                            <div className="font-semibold">{title}</div>
+                            <div className="text-sm text-gray-600">
+                              {item.roadAddress || item.address}
+                            </div>
+                            {item.category && (
+                              <div className="mt-0.5 text-xs text-gray-400">{item.category}</div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  {!searching && results.length === 0 && (
+                    <p className="mt-3 text-sm text-gray-500">검색 결과가 없습니다.</p>
+                  )}
                 </div>
-
-                {/* 드롭다운 결과 */}
-                {results.length > 0 && (
-                  <ul className="mt-3 divide-y rounded-xl border">
-                    {results.map((item, idx) => {
-                      const title = String(item.title || "").replace(/<[^>]+>/g, "");
-                      return (
-                        <li
-                          key={idx}
-                          className="cursor-pointer p-3 hover:bg-gray-50"
-                          onClick={() => selectPlace(item)}
-                        >
-                          <div className="font-semibold">{title}</div>
-                          <div className="text-sm text-gray-600">
-                            {item.roadAddress || item.address}
-                          </div>
-                          {item.category && (
-                            <div className="mt-0.5 text-xs text-gray-400">{item.category}</div>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                {!searching && results.length === 0 && (
-                  <p className="mt-3 text-sm text-gray-500">검색 결과가 없습니다.</p>
-                )}
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 지역(고정 표시) */}
@@ -221,7 +293,7 @@ router.replace(
           <div className="rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-700">
             {region.name} <span className="text-gray-400">({region.slug})</span>
           </div>
-          <p className="text-xs text-gray-400">선택한 지역에 등록됩니다.</p>
+          {!isEdit && <p className="text-xs text-gray-400">선택한 지역에 등록됩니다.</p>}
         </div>
 
         {/* 주소/지도 링크 */}
@@ -279,34 +351,54 @@ router.replace(
           />
         </div>
 
-        {/* 비밀번호 */}
-        <div className="mt-6">
-          <Label>수정/삭제 비밀번호 (선택)</Label>
-          <TextInput
-            type="password"
-            name="ownerPass"
-            value={form.ownerPass}
-            onChange={onChange}
-            placeholder="나중에 수정/삭제할 때 필요합니다"
-            aria-label="수정/삭제 비밀번호"
-          />
-        </div>
-
-        {/* 동의 */}
-        <div className="mt-6">
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={agree}
-              onChange={(e) => setAgree(e.target.checked)}
-              className="mt-1"
-              aria-label="등록 안내 동의"
+        {/* 등록 모드: 수정/삭제 비밀번호(선택) */}
+        {!isEdit && (
+          <div className="mt-6">
+            <Label>수정/삭제 비밀번호 (선택)</Label>
+            <TextInput
+              type="password"
+              name="ownerPass"
+              value={form.ownerPass}
+              onChange={onChange}
+              placeholder="나중에 수정/삭제할 때 필요합니다"
+              aria-label="수정/삭제 비밀번호"
             />
-            <span className="text-gray-700">
-              허위/무단 정보는 삭제될 수 있으며, 등록한 정보는 서비스 내에서 공개됩니다.
-            </span>
-          </label>
-        </div>
+          </div>
+        )}
+
+        {/* 수정 모드: 수정 비밀번호(필수) */}
+        {isEdit && (
+          <div className="mt-6">
+            <Label required>수정 비밀번호</Label>
+            <TextInput
+              type="password"
+              name="password"
+              value={editPassword}
+              onChange={(e) => setEditPassword(e.target.value)}
+              placeholder="등록 시 설정한 비밀번호"
+              aria-label="수정 비밀번호"
+              required
+            />
+          </div>
+        )}
+
+        {/* 동의 (등록 모드에서만) */}
+        {!isEdit && (
+          <div className="mt-6">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={agree}
+                onChange={(e) => setAgree(e.target.checked)}
+                className="mt-1"
+                aria-label="등록 안내 동의"
+              />
+              <span className="text-gray-700">
+                허위/무단 정보는 삭제될 수 있으며, 등록한 정보는 서비스 내에서 공개됩니다.
+              </span>
+            </label>
+          </div>
+        )}
 
         {/* 하단 액션바 */}
         <div className="sticky bottom-0 mt-8 -mx-6 border-t bg-white/90 p-4 backdrop-blur">
@@ -316,10 +408,10 @@ router.replace(
               disabled={submitting}
               className="flex-1 rounded-xl bg-emerald-700 py-3 font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
             >
-              {submitting ? "등록 중…" : "등록"}
+              {submitting ? (isEdit ? "수정 중…" : "등록 중…") : isEdit ? "수정 저장" : "등록"}
             </button>
             <Link
-              href={`/places/${region.slug}`}
+              href={isEdit ? `/places/${region.slug}/${editSlug}` : `/regions/${region.slug}`}
               className="rounded-xl border px-4 py-3 font-semibold hover:bg-gray-50"
             >
               취소
@@ -329,4 +421,4 @@ router.replace(
       </form>
     </main>
   );
-}
+                }
