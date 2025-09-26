@@ -8,9 +8,7 @@ export default function Choose() {
           <h1 className="text-3xl md:text-4xl font-extrabold text-emerald-800">
             DB ON
           </h1>
-          <p className="mt-2 text-gray-600">
-            서비스를 선택하세요
-          </p>
+          <p className="mt-2 text-gray-600">서비스를 선택하세요</p>
         </header>
 
         <div className="mt-10 grid gap-4">
@@ -48,15 +46,6 @@ export default function Choose() {
                 이동
               </span>
             </div>
-          </Link>
-        </div>
-
-        <div className="mt-10 text-center">
-          <Link
-            href="/"
-            className="inline-block rounded-xl border px-4 py-2 text-sm font-semibold hover:bg-white"
-          >
-            ← 처음으로
           </Link>
         </div>
       </div>
