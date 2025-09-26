@@ -147,17 +147,18 @@ export default function PlaceDetail({ place }) {
 
   return (
     <main className="mx-auto max-w-2xl">
-      {/* 히어로(커버) — 여러 장 가로 스크롤 */}
+      {/* 히어로(커버) — 한 장씩 스와이프 */}
 <div className="relative">
   {hasImages ? (
-    <div className="w-full h-56 overflow-x-auto flex gap-2 p-2">
+    <div className="w-full h-56 overflow-x-auto flex snap-x snap-mandatory scroll-smooth no-scrollbar">
       {coverImages.map((url, idx) =>
         !imgErr[idx] && /^https?:\/\//i.test(url) ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             key={idx}
             src={url}
             alt={`${place.name} 이미지 ${idx + 1}`}
-            className="h-52 w-auto flex-shrink-0 rounded-lg object-cover border"
+            className="h-56 w-full min-w-full flex-shrink-0 object-cover"
             onError={() => setImgErr((e) => ({ ...e, [idx]: true }))}
           />
         ) : null
@@ -168,6 +169,9 @@ export default function PlaceDetail({ place }) {
       등록된 이미지가 없습니다
     </div>
   )}
+
+  {/* 상단 투명 헤더 영역 ... (이하 동일) */}
+</div>
 
         {/* 상단 투명 헤더 영역 */}
         <div className="absolute inset-x-0 top-0 p-3 flex items-center justify-between">
