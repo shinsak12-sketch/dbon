@@ -1,8 +1,9 @@
 // pages/places/[slug]/review.js
 import prisma from "../../../lib/prisma";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/router";
 
-export async function getServerSideProps({ params }) {
+export async function getServerSideProps({ params, query }) {
   const place = await prisma.place.findUnique({
     where: { slug: params.slug },
     select: {
@@ -13,12 +14,30 @@ export async function getServerSideProps({ params }) {
   });
   if (!place) return { notFound: true };
 
+  // 수정 모드일 때 리뷰도 가져오기
+  let review = null;
+  if (query.edit) {
+    const id = parseInt(query.edit, 10);
+    if (!isNaN(id)) {
+      review = await prisma.review.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          rating: true,
+          content: true,
+          author: true,
+          imageUrls: true,
+        },
+      });
+    }
+  }
+
   return {
     props: {
       slug: place.slug,
       regionSlug: place.region.slug,
       placeName: place.name,
-      regionName: place.region.name,
+      review: review || null,
     },
   };
 }
@@ -62,13 +81,16 @@ async function fileToDataURL(file, maxW = 1600, quality = 0.82) {
   return canvas.toDataURL("image/jpeg", quality);
 }
 
-export default function ReviewForm({ slug, regionSlug, placeName }) {
-  const [rating, setRating] = useState(5);
-  const [content, setContent] = useState("");
-  const [author, setAuthor] = useState("");
+export default function ReviewForm({ slug, regionSlug, placeName, review }) {
+  const router = useRouter();
+  const editMode = !!review;
+
+  const [rating, setRating] = useState(review?.rating || 5);
+  const [content, setContent] = useState(review?.content || "");
+  const [author, setAuthor] = useState(review?.author || "");
   const [pin, setPin] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [previewUrl, setPreviewUrl] = useState("");
+  const [imageUrl, setImageUrl] = useState(review?.imageUrls?.[0] || "");
+  const [previewUrl, setPreviewUrl] = useState(review?.imageUrls?.[0] || "");
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -98,25 +120,36 @@ export default function ReviewForm({ slug, regionSlug, placeName }) {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/reviews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug,
-          rating,
-          content,
-          author,
-          imageUrl, // 파일 선택 시 DataURL, 없으면 빈 값
-          pin,
-        }),
-      });
+      const payload = {
+        slug,
+        rating,
+        content,
+        author,
+        imageUrl,
+        pin,
+      };
+
+      let res;
+      if (editMode) {
+        res = await fetch(`/api/reviews/${review.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await fetch("/api/reviews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
 
       const data = await res.json();
       if (!res.ok) {
-        alert(data?.error || "등록 실패");
+        alert(data?.error || (editMode ? "수정 실패" : "등록 실패"));
         return;
       }
-      window.location.assign(`/places/${regionSlug}/${slug}`);
+      router.push(`/places/${regionSlug}/${slug}`);
     } finally {
       setLoading(false);
     }
@@ -124,7 +157,9 @@ export default function ReviewForm({ slug, regionSlug, placeName }) {
 
   return (
     <main className="max-w-md mx-auto p-6">
-      <h1 className="text-2xl font-bold">리뷰 작성 — {placeName}</h1>
+      <h1 className="text-2xl font-bold">
+        {editMode ? "리뷰 수정" : "리뷰 작성"} — {placeName}
+      </h1>
 
       <form className="mt-6 space-y-6" onSubmit={onSubmit}>
         <div>
@@ -208,9 +243,9 @@ export default function ReviewForm({ slug, regionSlug, placeName }) {
             loading ? "bg-gray-400" : "bg-emerald-700 hover:bg-emerald-800"
           }`}
         >
-          {loading ? "등록 중..." : "등록"}
+          {loading ? (editMode ? "수정 중..." : "등록 중...") : editMode ? "수정" : "등록"}
         </button>
       </form>
     </main>
   );
-}
+          }
