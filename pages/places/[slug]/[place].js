@@ -1,17 +1,16 @@
 // pages/places/[slug]/[place].js
-let prisma;
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { useMemo, useState } from "react";
+
+let prisma; // SSR에서만 동적 import
+
 export async function getServerSideProps({ params }) {
   if (!prisma) {
     const { default: p } = await import("../../../lib/prisma");
     prisma = p;
   }
-  ...
-}
-import Link from "next/link";
-import { useRouter } from "next/router";
-import { useMemo, useState } from "react";
 
-export async function getServerSideProps({ params }) {
   const regionSlug = params.slug;
   const placeSlug = params.place;
 
@@ -37,7 +36,7 @@ export async function getServerSideProps({ params }) {
   return { props: { place } };
 }
 
-// (옵션) 별 표시용
+// (옵션) 별 표시용 — 필요없으면 삭제 가능
 function Stars({ value = 0, size = "text-lg" }) {
   const full = Math.floor(value);
   const half = value - full >= 0.5;
@@ -59,12 +58,13 @@ export default function PlaceDetail({ place }) {
 
   // 🖼️ 커버 이미지(배열) + 레거시 단일 필드 호환
   const legacyCover =
-    place.coverImage && /^https?:\/\//i.test(place.coverImage)
+    place.coverImage && /^https?:\/\/+/i.test(place.coverImage)
       ? [place.coverImage]
       : [];
-  const coverImages = Array.isArray(place.coverImages) && place.coverImages.length
-    ? place.coverImages
-    : legacyCover;
+  const coverImages =
+    Array.isArray(place.coverImages) && place.coverImages.length
+      ? place.coverImages
+      : legacyCover;
 
   const hasImages = coverImages.length > 0;
   const [imgErr, setImgErr] = useState({}); // 각 이미지별 에러 상태
@@ -162,9 +162,9 @@ export default function PlaceDetail({ place }) {
 
   // 리뷰 이미지 첫 장(배열/레거시 모두 지원)
   const firstReviewImage = (r) => {
-    if (r.imageUrl && /^https?:\/\//i.test(r.imageUrl)) return r.imageUrl; // 레거시
+    if (r.imageUrl && /^https?:\/\/+/i.test(r.imageUrl)) return r.imageUrl; // 레거시
     if (Array.isArray(r.imageUrls) && r.imageUrls.length) {
-      const u = r.imageUrls.find((x) => /^https?:\/\//i.test(x));
+      const u = r.imageUrls.find((x) => /^https?:\/\/+/i.test(x));
       return u || null;
     }
     return null;
@@ -177,7 +177,7 @@ export default function PlaceDetail({ place }) {
         {hasImages ? (
           <div className="w-full h-56 overflow-x-auto flex snap-x snap-mandatory scroll-smooth">
             {coverImages.map((url, idx) =>
-              !imgErr[idx] && /^https?:\/\//i.test(url) ? (
+              !imgErr[idx] && /^https?:\/\/+/i.test(url) ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   key={idx}
@@ -436,4 +436,4 @@ export default function PlaceDetail({ place }) {
       )}
     </main>
   );
-                }
+                              }
