@@ -1,12 +1,13 @@
 // pages/places/[slug]/review.js
 import prisma from "../../../lib/prisma";
-import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/router";
+import { useState, useRef } from "react";
 
+/** 서버사이드: 장소 정보 + (edit 모드면) 기존 리뷰 불러오기 */
 export async function getServerSideProps({ params, query }) {
   const place = await prisma.place.findUnique({
     where: { slug: params.slug },
     select: {
+      id: true,
       slug: true,
       name: true,
       region: { select: { slug: true, name: true } },
@@ -14,21 +15,29 @@ export async function getServerSideProps({ params, query }) {
   });
   if (!place) return { notFound: true };
 
-  // 수정 모드일 때 리뷰도 가져오기
-  let review = null;
-  if (query.edit) {
-    const id = parseInt(query.edit, 10);
-    if (!isNaN(id)) {
-      review = await prisma.review.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          rating: true,
-          content: true,
-          author: true,
-          imageUrls: true,
-        },
-      });
+  let editReview = null;
+  const editId = Number(query.edit);
+  if (editId) {
+    const r = await prisma.review.findUnique({
+      where: { id: editId },
+      select: {
+        id: true,
+        placeId: true,
+        rating: true,
+        content: true,
+        author: true,
+        imageUrl: true,
+      },
+    });
+    // 다른 가게 리뷰 접근 방지
+    if (r && r.placeId === place.id) {
+      editReview = {
+        id: r.id,
+        rating: r.rating,
+        content: r.content || "",
+        author: r.author || "",
+        imageUrl: r.imageUrl || "",
+      };
     }
   }
 
@@ -37,7 +46,8 @@ export async function getServerSideProps({ params, query }) {
       slug: place.slug,
       regionSlug: place.region.slug,
       placeName: place.name,
-      review: review || null,
+      regionName: place.region.name,
+      editReview, // 없으면 null
     },
   };
 }
@@ -81,16 +91,16 @@ async function fileToDataURL(file, maxW = 1600, quality = 0.82) {
   return canvas.toDataURL("image/jpeg", quality);
 }
 
-export default function ReviewForm({ slug, regionSlug, placeName, review }) {
-  const router = useRouter();
-  const editMode = !!review;
+export default function ReviewForm({ slug, regionSlug, placeName, editReview }) {
+  const isEdit = !!editReview;
 
-  const [rating, setRating] = useState(review?.rating || 5);
-  const [content, setContent] = useState(review?.content || "");
-  const [author, setAuthor] = useState(review?.author || "");
+  // ✅ 기존 리뷰값으로 초기 세팅 (없으면 기본값)
+  const [rating, setRating] = useState(editReview?.rating ?? 5);
+  const [content, setContent] = useState(editReview?.content ?? "");
+  const [author, setAuthor] = useState(editReview?.author ?? "");
   const [pin, setPin] = useState("");
-  const [imageUrl, setImageUrl] = useState(review?.imageUrls?.[0] || "");
-  const [previewUrl, setPreviewUrl] = useState(review?.imageUrls?.[0] || "");
+  const [imageUrl, setImageUrl] = useState(editReview?.imageUrl ?? "");
+  const [previewUrl, setPreviewUrl] = useState(editReview?.imageUrl ?? "");
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -120,36 +130,44 @@ export default function ReviewForm({ slug, regionSlug, placeName, review }) {
 
     setLoading(true);
     try {
-      const payload = {
-        slug,
-        rating,
-        content,
-        author,
-        imageUrl,
-        pin,
-      };
+      let res, data;
 
-      let res;
-      if (editMode) {
-        res = await fetch(`/api/reviews/${review.id}`, {
+      if (isEdit) {
+        // ✅ 수정
+        res = await fetch(`/api/reviews/${editReview.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            rating,
+            content,
+            author,
+            imageUrl, // 유지/변경/제거(빈 문자열) 모두 반영
+            pin,      // 검증용
+          }),
         });
       } else {
+        // 생성
         res = await fetch("/api/reviews", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            slug,
+            rating,
+            content,
+            author,
+            imageUrl,
+            pin,
+          }),
         });
       }
 
-      const data = await res.json();
+      data = await res.json();
       if (!res.ok) {
-        alert(data?.error || (editMode ? "수정 실패" : "등록 실패"));
+        alert(data?.error || (isEdit ? "수정 실패" : "등록 실패"));
         return;
       }
-      router.push(`/places/${regionSlug}/${slug}`);
+      // 완료 후 상세로
+      window.location.assign(`/places/${regionSlug}/${slug}`);
     } finally {
       setLoading(false);
     }
@@ -158,7 +176,7 @@ export default function ReviewForm({ slug, regionSlug, placeName, review }) {
   return (
     <main className="max-w-md mx-auto p-6">
       <h1 className="text-2xl font-bold">
-        {editMode ? "리뷰 수정" : "리뷰 작성"} — {placeName}
+        {isEdit ? `리뷰 수정 — ${placeName}` : `리뷰 작성 — ${placeName}`}
       </h1>
 
       <form className="mt-6 space-y-6" onSubmit={onSubmit}>
@@ -178,7 +196,7 @@ export default function ReviewForm({ slug, regionSlug, placeName, review }) {
             />
           </div>
 
-          {/* 이미지 첨부 */}
+          {/* 이미지 첨부 (선택) */}
           <div>
             <label className="block text-sm font-medium mb-1">이미지 첨부 (선택)</label>
             <div className="flex items-center gap-2">
@@ -202,6 +220,7 @@ export default function ReviewForm({ slug, regionSlug, placeName, review }) {
 
             {previewUrl ? (
               <div className="mt-3">
+                {/* 미리보기 */}
                 <img
                   src={previewUrl}
                   alt="preview"
@@ -243,9 +262,9 @@ export default function ReviewForm({ slug, regionSlug, placeName, review }) {
             loading ? "bg-gray-400" : "bg-emerald-700 hover:bg-emerald-800"
           }`}
         >
-          {loading ? (editMode ? "수정 중..." : "등록 중...") : editMode ? "수정" : "등록"}
+          {loading ? (isEdit ? "수정 중..." : "등록 중...") : (isEdit ? "수정" : "등록")}
         </button>
       </form>
     </main>
   );
-          }
+}
