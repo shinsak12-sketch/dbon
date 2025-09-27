@@ -98,20 +98,28 @@ export default function RegionDetail({ region, places }) {
               </div>
 
               {/* 텍스트 */}
-              <div className="flex-1">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-semibold">{p.name}</h2>
-                  <span className="text-yellow-600 font-bold">
-                    ★ {(p.avgRating ?? 0).toFixed(1)}
-                  </span>
-                  <span className="text-sm text-gray-500">
-                    리뷰 {p.reviewsCount}개
-                  </span>
-                </div>
-                {p.address && (
-                  <p className="text-sm text-gray-500 mt-1">{p.address}</p>
-                )}
-              </div>
+              {/* 텍스트 */}
+<div className="flex-1">
+  {/* ① 이름 */}
+  <h2 className="text-lg font-semibold text-emerald-900 truncate">
+    {p.name}
+  </h2>
+
+  {/* ② 별점 + 리뷰 */}
+  <div className="mt-1 flex items-center gap-2">
+    <span className="text-yellow-600 font-bold">
+      ★ {(p.avgRating ?? 0).toFixed(1)}
+    </span>
+    <span className="text-sm text-gray-500">
+      리뷰 {p.reviewsCount}개
+    </span>
+  </div>
+
+  {/* ③ 주소 */}
+  {p.address && (
+    <p className="mt-1 text-sm text-gray-600 line-clamp-1">{p.address}</p>
+  )}
+</div>
             </Link>
           );
         })}
