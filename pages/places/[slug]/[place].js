@@ -160,18 +160,18 @@ export default function PlaceDetail({ place }) {
     }
   };
 
-  // 리뷰 이미지 첫 장(배열/레거시 모두 지원)
-  // http(s):// 로 시작하는 유효 URL만 체크
-const isHttp = (u) => typeof u === "string" && /^https?:\/\/\S+/i.test(u);
+  // http(s):// 또는 data:image/ 인라인 데이터 URL 모두 허용
+const isDisplayableImg = (u) =>
+  typeof u === "string" && (/^https?:\/\/\S+/i.test(u) || /^data:image\/\w+;base64,/i.test(u));
 
 const firstReviewImage = (r) => {
-  // 배열 우선
+  // 배열 우선 (신규 스키마)
   if (Array.isArray(r.imageUrls) && r.imageUrls.length) {
-    const u = r.imageUrls.find(isHttp);
+    const u = r.imageUrls.find(isDisplayableImg);
     if (u) return u;
   }
   // 레거시 단일 필드
-  return isHttp(r.imageUrl) ? r.imageUrl : null;
+  return isDisplayableImg(r.imageUrl) ? r.imageUrl : null;
 };
 
   return (
@@ -341,7 +341,7 @@ const firstReviewImage = (r) => {
                     </span>
                   </div>
 
-                  {firstImg && (
+                  {isDisplayableImg(firstImg) && (
   <div className="mt-3">
     <img
       src={firstImg}
@@ -349,9 +349,7 @@ const firstReviewImage = (r) => {
       className="w-full rounded-xl border"
       loading="lazy"
       decoding="async"
-      onError={(e) => {
-        e.currentTarget.style.display = "none";
-      }}
+      onError={(e) => { e.currentTarget.style.display = "none"; }}
     />
   </div>
 )}
