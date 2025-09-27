@@ -69,6 +69,9 @@ export default function PlaceDetail({ place }) {
   const hasImages = coverImages.length > 0;
   const [imgErr, setImgErr] = useState({}); // 각 이미지별 에러 상태
 
+  // ✅ 리뷰 사진 확대 보기 상태
+  const [photoView, setPhotoView] = useState(null);
+
   // 메뉴/삭제/수정 모달
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -160,19 +163,21 @@ export default function PlaceDetail({ place }) {
     }
   };
 
-  // http(s):// 또는 data:image/ 인라인 데이터 URL 모두 허용
-const isDisplayableImg = (u) =>
-  typeof u === "string" && (/^https?:\/\/\S+/i.test(u) || /^data:image\/\w+;base64,/i.test(u));
+  // http(s):// 또는 data:image/ 인라인 데이터 URL 허용
+  const isDisplayableImg = (u) =>
+    typeof u === "string" &&
+    (/^https?:\/\/\S+/i.test(u) || /^data:image\/\w+;base64,/i.test(u));
 
-const firstReviewImage = (r) => {
-  // 배열 우선 (신규 스키마)
-  if (Array.isArray(r.imageUrls) && r.imageUrls.length) {
-    const u = r.imageUrls.find(isDisplayableImg);
-    if (u) return u;
-  }
-  // 레거시 단일 필드
-  return isDisplayableImg(r.imageUrl) ? r.imageUrl : null;
-};
+  // 리뷰 이미지 첫 장(배열/레거시 모두 지원)
+  const firstReviewImage = (r) => {
+    // 배열 우선 (신규 스키마)
+    if (Array.isArray(r.imageUrls) && r.imageUrls.length) {
+      const u = r.imageUrls.find(isDisplayableImg);
+      if (u) return u;
+    }
+    // 레거시 단일 필드
+    return isDisplayableImg(r.imageUrl) ? r.imageUrl : null;
+  };
 
   return (
     <main className="mx-auto max-w-2xl">
@@ -218,11 +223,15 @@ const firstReviewImage = (r) => {
         <div className="rounded-2xl border bg-white p-5 shadow-soft">
           <div className="flex items-start justify-between gap-3 relative">
             <div>
-              <h1 className="text-2xl font-extrabold text-emerald-800">{place.name}</h1>
+              <h1 className="text-2xl font-extrabold text-emerald-800">
+                {place.name}
+              </h1>
               <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
                 <span className="text-yellow-500 font-bold">★ {ratingText}</span>
                 <span className="text-gray-400">·</span>
-                <span>리뷰 {place.reviewsCount || place.reviews?.length || 0}개</span>
+                <span>
+                  리뷰 {place.reviewsCount || place.reviews?.length || 0}개
+                </span>
               </div>
             </div>
 
@@ -297,8 +306,12 @@ const firstReviewImage = (r) => {
 
           {(place.description || place.author) && (
             <div className="mt-4 rounded-xl border bg-emerald-50 p-4 text-gray-800">
-              {place.description && <p className="whitespace-pre-line">{place.description}</p>}
-              {place.author && <p className="mt-2 text-sm text-gray-600">— {place.author}</p>}
+              {place.description && (
+                <p className="whitespace-pre-line">{place.description}</p>
+              )}
+              {place.author && (
+                <p className="mt-2 text-sm text-gray-600">— {place.author}</p>
+              )}
             </div>
           )}
 
@@ -330,11 +343,18 @@ const firstReviewImage = (r) => {
             {place.reviews?.map((r) => {
               const firstImg = firstReviewImage(r);
               return (
-                <li key={r.id} className="rounded-2xl border bg-white p-4 shadow-sm">
+                <li
+                  key={r.id}
+                  className="rounded-2xl border bg-white p-4 shadow-sm"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-yellow-500 font-bold">★ {r.rating}</span>
-                      {r.author && <span className="text-sm text-gray-600">· {r.author}</span>}
+                      <span className="text-yellow-500 font-bold">
+                        ★ {r.rating}
+                      </span>
+                      {r.author && (
+                        <span className="text-sm text-gray-600">· {r.author}</span>
+                      )}
                     </div>
                     <span className="text-xs text-gray-400">
                       {new Date(r.createdAt).toLocaleDateString("ko-KR")}
@@ -342,19 +362,26 @@ const firstReviewImage = (r) => {
                   </div>
 
                   {isDisplayableImg(firstImg) && (
-  <div className="mt-3">
-    <img
-      src={firstImg}
-      alt="review"
-      className="w-full rounded-xl border"
-      loading="lazy"
-      decoding="async"
-      onError={(e) => { e.currentTarget.style.display = "none"; }}
-    />
-  </div>
-)}
+                    <div className="mt-3">
+                      {/* 썸네일(작게) */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={firstImg}
+                        alt="review"
+                        className="w-32 h-32 object-cover rounded-lg border cursor-pointer"
+                        loading="lazy"
+                        decoding="async"
+                        onClick={() => setPhotoView(firstImg)}
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
+                    </div>
+                  )}
 
-                  <p className="mt-3 text-gray-800 whitespace-pre-line">{r.content}</p>
+                  <p className="mt-3 text-gray-800 whitespace-pre-line">
+                    {r.content}
+                  </p>
                 </li>
               );
             })}
@@ -362,12 +389,29 @@ const firstReviewImage = (r) => {
         </div>
       </section>
 
+      {/* 리뷰 사진 확대 모달 */}
+      {photoView && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setPhotoView(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photoView}
+            alt="review full"
+            className="max-h-[90%] max-w-[90%] object-contain rounded-xl"
+          />
+        </div>
+      )}
+
       {/* 삭제 모달 */}
       {deleteOpen && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5">
             <h3 className="text-lg font-bold">맛집 삭제</h3>
-            <p className="mt-1 text-sm text-gray-600">등록 시 설정한 비밀번호를 입력하세요.</p>
+            <p className="mt-1 text-sm text-gray-600">
+              등록 시 설정한 비밀번호를 입력하세요.
+            </p>
 
             <input
               type="password"
@@ -405,7 +449,9 @@ const firstReviewImage = (r) => {
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5">
             <h3 className="text-lg font-bold">맛집 수정</h3>
-            <p className="mt-1 text-sm text-gray-600">등록 시 설정한 비밀번호를 입력하세요.</p>
+            <p className="mt-1 text-sm text-gray-600">
+              등록 시 설정한 비밀번호를 입력하세요.
+            </p>
 
             <input
               type="password"
@@ -439,4 +485,4 @@ const firstReviewImage = (r) => {
       )}
     </main>
   );
-                              }
+}
