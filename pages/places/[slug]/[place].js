@@ -1,5 +1,12 @@
 // pages/places/[slug]/[place].js
-import prisma from "../../../lib/prisma";
+let prisma;
+export async function getServerSideProps({ params }) {
+  if (!prisma) {
+    const { default: p } = await import("../../../lib/prisma");
+    prisma = p;
+  }
+  ...
+}
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
