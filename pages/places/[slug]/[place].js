@@ -72,7 +72,7 @@ export default function PlaceDetail({ place }) {
   // ✅ 리뷰 사진 확대 보기 상태
   const [photoView, setPhotoView] = useState(null);
 
-  // 메뉴/삭제/수정 모달
+  // ====== 맛집 메뉴/삭제/수정 모달 ======
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePwd, setDeletePwd] = useState("");
@@ -81,6 +81,14 @@ export default function PlaceDetail({ place }) {
   const [editOpen, setEditOpen] = useState(false);
   const [editPwd, setEditPwd] = useState("");
   const [editing, setEditing] = useState(false);
+
+  // ====== 리뷰 수정/삭제 메뉴 & 모달 ======
+  const [rvMenuId, setRvMenuId] = useState(null);       // 어느 리뷰의 ⋮ 메뉴가 열렸는지
+  const [rvTarget, setRvTarget] = useState(null);       // 작업 대상 리뷰 객체
+  const [rvPin, setRvPin] = useState("");               // 리뷰 비밀번호 입력
+  const [rvEditOpen, setRvEditOpen] = useState(false);  // 리뷰 수정 비번 모달
+  const [rvDeleteOpen, setRvDeleteOpen] = useState(false); // 리뷰 삭제 비번 모달
+  const [rvWorking, setRvWorking] = useState(false);    // 리뷰 삭제 로딩
 
   const shareUrl = useMemo(() => {
     if (typeof window !== "undefined") return window.location.href;
@@ -111,14 +119,13 @@ export default function PlaceDetail({ place }) {
     } catch {}
   };
 
-  // 수정 시작
+  // 수정 시작(맛집)
   const openEdit = () => {
     setMenuOpen(false);
     setEditOpen(true);
     setEditPwd("");
   };
-
-  // 수정 확인 → 비번 세션 저장 후 edit 모드로 이동
+  // 수정 확인(맛집)
   const confirmEdit = () => {
     if (!editPwd.trim()) {
       alert("수정 비밀번호를 입력해 주세요.");
@@ -136,7 +143,7 @@ export default function PlaceDetail({ place }) {
     }
   };
 
-  // 삭제
+  // 삭제(맛집)
   const doDelete = async () => {
     if (!deletePwd.trim()) {
       alert("삭제 비밀번호를 입력해 주세요.");
@@ -170,13 +177,59 @@ export default function PlaceDetail({ place }) {
 
   // 리뷰 이미지 첫 장(배열/레거시 모두 지원)
   const firstReviewImage = (r) => {
-    // 배열 우선 (신규 스키마)
     if (Array.isArray(r.imageUrls) && r.imageUrls.length) {
       const u = r.imageUrls.find(isDisplayableImg);
       if (u) return u;
     }
-    // 레거시 단일 필드
     return isDisplayableImg(r.imageUrl) ? r.imageUrl : null;
+  };
+
+  // ===== 리뷰 수정/삭제 이벤트 =====
+  const openReviewEdit = (r) => {
+    setRvTarget(r);
+    setRvPin("");
+    setRvEditOpen(true);
+    setRvMenuId(null);
+  };
+
+  const confirmReviewEdit = () => {
+    if (!rvPin.trim()) return alert("리뷰 비밀번호를 입력해 주세요.");
+    try {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(`reviewEditPw:${rvTarget.id}`, rvPin.trim());
+      }
+      router.push(`/places/${place.slug}/review?edit=${rvTarget.id}`);
+    } finally {
+      setRvEditOpen(false);
+      setRvPin("");
+    }
+  };
+
+  const openReviewDelete = (r) => {
+    setRvTarget(r);
+    setRvPin("");
+    setRvDeleteOpen(true);
+    setRvMenuId(null);
+  };
+
+  const confirmReviewDelete = async () => {
+    if (!rvPin.trim()) return alert("리뷰 비밀번호를 입력해 주세요.");
+    setRvWorking(true);
+    try {
+      const res = await fetch(`/api/reviews/${rvTarget.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: rvPin }),
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data?.error || "삭제 실패");
+      router.replace(router.asPath); // 새로고침
+    } finally {
+      setRvWorking(false);
+      setRvDeleteOpen(false);
+      setRvPin("");
+      setRvTarget(null);
+    }
   };
 
   return (
@@ -345,7 +398,7 @@ export default function PlaceDetail({ place }) {
               return (
                 <li
                   key={r.id}
-                  className="rounded-2xl border bg-white p-4 shadow-sm"
+                  className="rounded-2xl border bg-white p-4 shadow-sm relative"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -356,9 +409,39 @@ export default function PlaceDetail({ place }) {
                         <span className="text-sm text-gray-600">· {r.author}</span>
                       )}
                     </div>
-                    <span className="text-xs text-gray-400">
-                      {new Date(r.createdAt).toLocaleDateString("ko-KR")}
-                    </span>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400">
+                        {new Date(r.createdAt).toLocaleDateString("ko-KR")}
+                      </span>
+                      {/* 리뷰 ⋮ 메뉴 버튼 */}
+                      <button
+                        className="rounded-lg border px-2 py-1 text-lg leading-none hover:bg-gray-50"
+                        onClick={() =>
+                          setRvMenuId(rvMenuId === r.id ? null : r.id)
+                        }
+                        aria-label="리뷰 메뉴"
+                      >
+                        ⋮
+                      </button>
+                      {/* 드롭다운 */}
+                      {rvMenuId === r.id && (
+                        <div className="absolute right-3 top-10 z-20 w-36 overflow-hidden rounded-xl border bg-white shadow-md">
+                          <button
+                            className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-50"
+                            onClick={() => openReviewEdit(r)}
+                          >
+                            수정하기
+                          </button>
+                          <button
+                            className="block w-full px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50"
+                            onClick={() => openReviewDelete(r)}
+                          >
+                            삭제하기
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {isDisplayableImg(firstImg) && (
@@ -404,9 +487,84 @@ export default function PlaceDetail({ place }) {
         </div>
       )}
 
-      {/* 삭제 모달 */}
+      {/* 리뷰 수정 비밀번호 모달 */}
+      {rvEditOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5">
+            <h3 className="text-lg font-bold">리뷰 수정</h3>
+            <p className="mt-1 text-sm text-gray-600">
+              작성 시 설정한 비밀번호를 입력하세요.
+            </p>
+            <input
+              type="password"
+              value={rvPin}
+              onChange={(e) => setRvPin(e.target.value)}
+              placeholder="비밀번호"
+              className="mt-4 w-full rounded-lg border p-3"
+              autoFocus
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+                onClick={() => {
+                  setRvEditOpen(false);
+                  setRvPin("");
+                }}
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmReviewEdit}
+                className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 리뷰 삭제 비밀번호 모달 */}
+      {rvDeleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5">
+            <h3 className="text-lg font-bold">리뷰 삭제</h3>
+            <p className="mt-1 text-sm text-gray-600">
+              작성 시 설정한 비밀번호를 입력하세요.
+            </p>
+            <input
+              type="password"
+              value={rvPin}
+              onChange={(e) => setRvPin(e.target.value)}
+              placeholder="비밀번호"
+              className="mt-4 w-full rounded-lg border p-3"
+              autoFocus
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+                onClick={() => {
+                  setRvDeleteOpen(false);
+                  setRvPin("");
+                }}
+              >
+                취소
+              </button>
+              <button
+                disabled={rvWorking}
+                onClick={confirmReviewDelete}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+              >
+                {rvWorking ? "삭제 중…" : "삭제"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 맛집 삭제 모달 */}
       {deleteOpen && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5">
             <h3 className="text-lg font-bold">맛집 삭제</h3>
             <p className="mt-1 text-sm text-gray-600">
@@ -444,9 +602,9 @@ export default function PlaceDetail({ place }) {
         </div>
       )}
 
-      {/* 수정 비밀번호 모달 */}
+      {/* 맛집 수정 비밀번호 모달 */}
       {editOpen && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5">
             <h3 className="text-lg font-bold">맛집 수정</h3>
             <p className="mt-1 text-sm text-gray-600">
@@ -485,4 +643,4 @@ export default function PlaceDetail({ place }) {
       )}
     </main>
   );
-}
+                    }
