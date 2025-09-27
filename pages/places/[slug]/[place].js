@@ -161,14 +161,18 @@ export default function PlaceDetail({ place }) {
   };
 
   // 리뷰 이미지 첫 장(배열/레거시 모두 지원)
-  const firstReviewImage = (r) => {
-    if (r.imageUrl && /^https?:\/\/+/i.test(r.imageUrl)) return r.imageUrl; // 레거시
-    if (Array.isArray(r.imageUrls) && r.imageUrls.length) {
-      const u = r.imageUrls.find((x) => /^https?:\/\/+/i.test(x));
-      return u || null;
-    }
-    return null;
-  };
+  // http(s):// 로 시작하는 유효 URL만 체크
+const isHttp = (u) => typeof u === "string" && /^https?:\/\/\S+/i.test(u);
+
+const firstReviewImage = (r) => {
+  // 배열 우선
+  if (Array.isArray(r.imageUrls) && r.imageUrls.length) {
+    const u = r.imageUrls.find(isHttp);
+    if (u) return u;
+  }
+  // 레거시 단일 필드
+  return isHttp(r.imageUrl) ? r.imageUrl : null;
+};
 
   return (
     <main className="mx-auto max-w-2xl">
@@ -338,18 +342,19 @@ export default function PlaceDetail({ place }) {
                   </div>
 
                   {firstImg && (
-                    <div className="mt-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={firstImg}
-                        alt="review"
-                        className="w-full rounded-xl border"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                    </div>
-                  )}
+  <div className="mt-3">
+    <img
+      src={firstImg}
+      alt="review"
+      className="w-full rounded-xl border"
+      loading="lazy"
+      decoding="async"
+      onError={(e) => {
+        e.currentTarget.style.display = "none";
+      }}
+    />
+  </div>
+)}
 
                   <p className="mt-3 text-gray-800 whitespace-pre-line">{r.content}</p>
                 </li>
