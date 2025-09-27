@@ -33,18 +33,21 @@ export async function getServerSideProps() {
     },
   });
 
-  // 👑 맛집왕 Top 3 (가장 많이 등록한 닉네임)
-  const topAuthorsRaw = await prisma.place.groupBy({
+  // 👑 맛집왕 Top 3 (가장 많이 등록한 닉네임) — 에러 가드 + 빈닉 필터
+let topAuthors = [];
+try {
+  const rows = await prisma.place.groupBy({
     by: ["author"],
-    where: { author: { not: null, not: "" } },
+    where: { author: { not: null } },                   // DB에서 우선 null만 제외
     _count: { _all: true },
     orderBy: { _count: { _all: "desc" } },
     take: 3,
   });
 
-  // 각 닉네임의 대표 썸네일/지역 하나 가져오기(카드용)
-  const topAuthors = await Promise.all(
-    topAuthorsRaw.map(async (a) => {
+  const filtered = rows.filter(r => String(r.author).trim() !== ""); // 빈문자 제거
+
+  topAuthors = await Promise.all(
+    filtered.map(async (a) => {
       const anyPlace = await prisma.place.findFirst({
         where: { author: a.author },
         select: {
@@ -54,14 +57,19 @@ export async function getServerSideProps() {
         },
         orderBy: { createdAt: "desc" },
       });
+
       return {
-        author: a.author,
+        author: String(a.author),
         count: a._count._all,
         regionName: anyPlace?.region?.name ?? null,
-        thumb: pickThumb(anyPlace),
+        thumb: pickThumb(anyPlace || {}),               // 널 세이프
       };
     })
   );
+} catch (e) {
+  console.error("[topAuthors groupBy failed]", e);
+  topAuthors = [];                                      // 실패 시 빈 배열로 처리 → 500 방지
+}
 
   return { props: { regions, top3, topAuthors } };
 }
