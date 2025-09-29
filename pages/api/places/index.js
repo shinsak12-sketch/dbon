@@ -73,12 +73,17 @@ export default async function handler(req, res) {
       } = req.body || {};
 
       if (!name || !String(name).trim()) {
-        return res.status(400).json({ error: "NAME_REQUIRED" });
-      }
+  return res.status(400).json({ error: "NAME_REQUIRED" });
+}
 
-      // region 확인(둘 다 지원)
-      const regionId = await resolveRegionId({ regionSlug, region });
-      if (!regionId) return res.status(400).json({ error: "REGION_REQUIRED" });
+// ✅ 닉네임 필수
+if (!author || !String(author).trim()) {
+  return res.status(400).json({ error: "AUTHOR_REQUIRED" });
+}
+
+// region 확인(둘 다 지원)
+const regionId = await resolveRegionId({ regionSlug, region });
+if (!regionId) return res.status(400).json({ error: "REGION_REQUIRED" });
 
       // 비밀번호 해시(선택)
       const rawPass = getPasswordFromBody(req.body);
