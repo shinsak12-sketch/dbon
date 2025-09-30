@@ -13,6 +13,7 @@ export default function ChampMe() {
   // 최초 비번 설정 입력
   const [newPwd, setNewPwd] = useState("");
   const [newPwd2, setNewPwd2] = useState("");
+  const [setPwdNickname, setSetPwdNickname] = useState(""); // ⬅️ 동명이인 구분용 닉네임
   const [working, setWorking] = useState(false);
 
   // 내 정보/기록
@@ -72,7 +73,11 @@ export default function ChampMe() {
       const r = await fetch("/api/champ/participants/set-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), password: newPwd }),
+        body: JSON.stringify({
+          name: name.trim(),
+          password: newPwd,
+          nickname: setPwdNickname.trim() || undefined, // ⬅️ 동명이인일 때 서버에서 필요
+        }),
       });
       const data = await r.json();
       if (!r.ok) {
@@ -85,6 +90,10 @@ export default function ChampMe() {
           alert("해당 이름의 참가자를 찾을 수 없어요. 먼저 참가 등록을 해주세요.");
           return;
         }
+        if (data?.error === "AMBIGUOUS_NAME_NEED_NICKNAME") {
+          alert("동명이인이 있어요. 닉네임도 함께 입력해 주세요.");
+          return;
+        }
         alert(data?.error || "설정 실패");
         return;
       }
@@ -92,6 +101,7 @@ export default function ChampMe() {
       setPassword(""); // 로그인 비번 입력칸 비우기
       setNewPwd("");
       setNewPwd2("");
+      setSetPwdNickname("");
       setStep("login");
     } catch {
       alert("네트워크 오류");
@@ -187,6 +197,16 @@ export default function ChampMe() {
               className="w-full border rounded-lg p-3"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              disabled={working}
+            />
+          </div>
+          <div>
+            <label className="block font-semibold mb-1">닉네임 <span className="text-gray-400 text-xs">(동명이인일 때만)</span></label>
+            <input
+              className="w-full border rounded-lg p-3"
+              placeholder="예) 지원신이삭"
+              value={setPwdNickname}
+              onChange={(e) => setSetPwdNickname(e.target.value)}
               disabled={working}
             />
           </div>
