@@ -56,29 +56,45 @@ export default function MyApp({ Component, pageProps }) {
           )}
 
           {/* ✅ 챔피언십 헤더 */}
+// pages/_app.js (챔피언십 헤더 부분만 교체)
 {isChamp && (
   <header className="sticky top-0 z-40 bg-emerald-800 text-white">
-    <div className="mx-auto max-w-3xl px-4 py-3 flex items-center gap-3">
-      {/* 로고 클릭 → /champ 홈 이동 */}
-      <Link href="/champ" className="font-extrabold text-xl whitespace-nowrap">
-        DB ON Championship 🏌️
-      </Link>
+    <div className="mx-auto max-w-4xl px-4 py-3">
+      {/* 상단 줄: 타이틀 */}
+      <div className="flex items-center gap-2">
+        <span className="font-extrabold text-lg flex-1">DB ON Championship 🏌️</span>
+        {/* 데스크탑(>=sm): 오른쪽 버튼 한 줄 */}
+        <div className="hidden sm:flex items-center gap-2">
+          <Link
+            href="/champ/me"
+            className="rounded-md bg-emerald-700 hover:bg-emerald-600 px-3 py-2 font-semibold"
+          >
+            내정보
+          </Link>
+          <Link
+            href="/register"
+            className="rounded-md bg-yellow-400 text-black px-3 py-2 font-semibold hover:bg-yellow-300"
+          >
+            선수등록
+          </Link>
+        </div>
+      </div>
 
-      <div className="flex-1" />
-
-      {/* 버튼 영역 */}
-      <Link
-        href="/champ/me"
-        className="shrink-0 rounded-md bg-white/95 text-gray-900 px-3 py-2 font-semibold hover:bg-gray-100"
-      >
-        내정보
-      </Link>
-      <Link
-        href="/register"
-        className="shrink-0 rounded-md bg-white/95 text-gray-900 px-3 py-2 font-semibold hover:bg-gray-100"
-      >
-        선수등록
-      </Link>
+      {/* 모바일(<sm): 버튼을 아래 줄로 */}
+      <div className="mt-2 flex sm:hidden items-center gap-2">
+        <Link
+          href="/champ/me"
+          className="flex-1 rounded-md bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 font-semibold text-sm text-center"
+        >
+          내정보
+        </Link>
+        <Link
+          href="/register"
+          className="flex-1 rounded-md bg-yellow-400 text-black px-3 py-1.5 font-semibold text-sm hover:bg-yellow-300 text-center"
+        >
+          선수등록
+        </Link>
+      </div>
     </div>
   </header>
 )}
