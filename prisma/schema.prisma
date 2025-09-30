@@ -14,7 +14,6 @@ model Region {
   id     Int     @id @default(autoincrement())
   name   String
   slug   String  @unique
-
   places Place[]
 }
 
@@ -33,10 +32,10 @@ model Place {
   address       String?
   mapUrl        String?
 
-  // ✅ 레거시(단일) — 지금은 드랍하지 말 것
+  // 레거시(단일) — 지금은 유지
   coverImage    String?
 
-  // ✅ 새 다중 이미지
+  // 새 다중 이미지
   coverImages   String[]  @default([])
 
   // 소개/작성/비번
@@ -57,13 +56,13 @@ model Review {
   content   String
   author    String?
 
-  // ✅ 레거시(단일) — 지금은 드랍하지 말 것
+  // 레거시(단일)
   imageUrl   String?
 
-  // ✅ 새 다중 이미지
+  // 새 다중 이미지
   imageUrls  String[] @default([])
 
-  // 간단 보호용 PIN(비밀번호)
+  // 간단 보호용 PIN
   pin       String?
 
   createdAt DateTime @default(now())
@@ -76,17 +75,23 @@ model Setting {
 }
 
 /* =========================
-   디비온 챔피언십 도메인
+   디비온 챔피언십 도메인 (champ)
    ========================= */
 
 model Season {
   id        Int       @id @default(autoincrement())
   name      String
   year      Int
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  slug      String    @unique              // 예: "2024", "2025"
+  status    String    @default("open")     // open|closed|archived
+  startDate DateTime?
+  endDate   DateTime?
 
   events    Event[]
+  regs      Registration[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([year])
 }
@@ -94,13 +99,16 @@ model Season {
 model Event {
   id          Int       @id @default(autoincrement())
   seasonId    Int
-  name        String              // 예: Round 1
-  playedAt    DateTime?           // 경기 날짜(선택)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  name        String                     // 예: Round 1
+  slug        String     @unique         // 예: "2024-r1"
+  status      String     @default("draft")  // draft|open|closed|published
+  playedAt    DateTime?                  // 경기 날짜(선택)
 
-  season      Season    @relation(fields: [seasonId], references: [id])
+  season      Season     @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   scores      Score[]
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@index([seasonId])
   @@index([playedAt])
@@ -108,33 +116,66 @@ model Event {
 
 model Participant {
   id        Int       @id @default(autoincrement())
-  name      String              // 실명
-  dept      String?             // 소속
-  nickname  String              // 골프존 닉네임(매칭 키)
-  handicap  Float?              // 사전 등록 핸디
+  name      String                 // 실명
+  dept      String?                // 소속
+  nickname  String                 // 골프존 닉네임(매칭 키)
+  handicap  Float?                 // 기본 핸디(시즌별 덮어쓰기 가능)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   scores    Score[]
+  regs      Registration[]
 
-  @@unique([nickname])
+  @@unique([nickname])             // 전사 한 닉네임 1명 기준
   @@index([name])
 }
 
-model Score {
-  id            Int       @id @default(autoincrement())
-  eventId       Int
+model Registration {
+  id            Int        @id @default(autoincrement())
+  seasonId      Int
   participantId Int
-  strokes       Int                 // 실제 스코어(타수)
-  points        Int                 // 이벤트 포인트(규칙은 서버에서 산정)
-  rawJson       Json?               // 업로드 원본 행(백업용)
-  createdAt     DateTime  @default(now())
+  handicap      Float?     // 시즌별 핸디 오버라이드
 
-  event         Event       @relation(fields: [eventId], references: [id])
-  participant   Participant @relation(fields: [participantId], references: [id])
+  season        Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
 
-  // 한 이벤트에서 한 참가자 1개 기록만
-  @@unique([eventId, participantId], name: "eventId_participantId")
+  createdAt     DateTime    @default(now())
+
+  @@unique([seasonId, participantId])       // 시즌 안에서 1회 등록
+  @@index([seasonId])
+  @@index([participantId])
+}
+
+model Score {
+  id               Int        @id @default(autoincrement())
+  eventId          Int
+
+  // 업로드 원본 닉네임(항상 들어옴)
+  externalNickname String
+
+  // 매칭되면 participantId 세팅, 미등록이면 null -> 화면에서 제외하기 쉬움
+  participantId    Int?
+
+  strokes          Int?                      // 실제 타수
+  net              Float?                    // 넷(핸디 적용) — 선택
+  points           Int?                      // 포인트 — 이벤트 규칙에 따라 계산해 저장
+  rankStroke       Int?                      // 스트로크 랭킹(캐시)
+  rankNet          Int?                      // 넷 랭킹(캐시)
+  rankPoints       Int?                      // 포인트 랭킹(캐시)
+
+  rawJson          Json?                     // 업로드 원본 행(백업/감사용)
+  matched          Boolean    @default(false)
+
+  event            Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participant      Participant? @relation(fields: [participantId], references: [id])
+
+  createdAt        DateTime    @default(now())
+
+  // 한 이벤트에서 같은 닉네임 중복 방지 (원본 기준)
+  @@unique([eventId, externalNickname])
+
+  // 매칭 후에도 동일 참가자 중복 방지
+  @@unique([eventId, participantId])
 
   @@index([eventId])
   @@index([participantId])
