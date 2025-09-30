@@ -56,12 +56,29 @@ export default function MyApp({ Component, pageProps }) {
           )}
 
           {/* ✅ 챔피언십 헤더 */}
-          {isChamp && (
+{isChamp && (
   <header className="sticky top-0 z-40 bg-emerald-800 text-white">
-    <div className="mx-auto max-w-4xl px-4 py-3 flex items-center gap-2">
-      <span className="font-extrabold text-lg flex-1">DB ON Championship 🏌️</span>
-      <Link href="/champ/me" className="shrink-0 rounded-md bg-emerald-700 hover:bg-emerald-600 px-3 py-2">내정보</Link>
-      <Link href="/register" className="shrink-0 rounded-md bg-emerald-700 hover:bg-emerald-600 px-3 py-2">선수등록</Link>
+    <div className="mx-auto max-w-3xl px-4 py-3 flex items-center gap-3">
+      {/* 로고 클릭 → /champ 홈 이동 */}
+      <Link href="/champ" className="font-extrabold text-xl whitespace-nowrap">
+        DB ON Championship 🏌️
+      </Link>
+
+      <div className="flex-1" />
+
+      {/* 버튼 영역 */}
+      <Link
+        href="/champ/me"
+        className="shrink-0 rounded-md bg-white/95 text-gray-900 px-3 py-2 font-semibold hover:bg-gray-100"
+      >
+        내정보
+      </Link>
+      <Link
+        href="/register"
+        className="shrink-0 rounded-md bg-white/95 text-gray-900 px-3 py-2 font-semibold hover:bg-gray-100"
+      >
+        선수등록
+      </Link>
     </div>
   </header>
 )}
