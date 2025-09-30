@@ -57,7 +57,7 @@ export default function MyApp({ Component, pageProps }) {
 
           {/* ✅ 챔피언십 헤더 */}
           {isChamp && (
-  <header className="sticky top-0 z-40 bg-gradient-to-r from-purple-700 to-indigo-800 text-white">
+  <header className="sticky top-0 z-40 bg-emerald-800 text-white">
     <div className="mx-auto max-w-4xl px-4 py-3 flex items-center gap-2">
       <span className="font-extrabold text-lg flex-1">DB ON Championship 🏌️</span>
       <Link href="/champ/me" className="rounded-lg border border-white/40 px-3 py-1 text-sm hover:bg-white/10">내 정보</Link>
