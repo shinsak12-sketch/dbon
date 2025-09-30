@@ -2,7 +2,7 @@
 @font-face {
   font-family: 'SansBold';
   src: url('/fonts/sansbold.ttf') format('truetype');
-  font-weight: 400;
+  font-weight: 400;   /* 파일 자체가 Bold 계열이면 실제 표정은 굵게 보일 수 있음 */
   font-style: normal;
   font-display: swap;
 }
@@ -24,15 +24,23 @@
 
   html, body, #__next { height: 100%; }
 
+  /* ✅ 모바일 우측 빈공간/가로 스크롤 방지 + 폭 튐 방지 */
+  html, body { overflow-x: hidden; }
+  *, *::before, *::after { box-sizing: border-box; }
+  img, video { max-width: 100%; height: auto; }
+
   body {
     /* 전역 폰트 적용 */
-    font-family: 'SansBold', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    font-family: 'SansBold', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+      'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
 
-    /* ⛔️ bg-[var(--bg)] 는 @apply 불가 → 일반 CSS로 */
+    /* 배경/텍스트 */
     background-color: var(--bg);
     color: var(--text);
+
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   ::selection { background: rgba(16,185,129,0.22); }
@@ -53,7 +61,6 @@
 @layer components {
   /* Card */
   .card {
-    /* ⛔️ bg-[var(--card)] 대신 일반 CSS */
     background-color: var(--card);
     @apply rounded-2xl border shadow-soft;
   }
@@ -66,8 +73,7 @@
     @apply w-full rounded-xl border bg-white/95 px-3 py-2 text-slate-900
            placeholder:text-gray-400
            focus:outline-none focus:ring-2 focus:border-emerald-500;
-    /* ⛔️ focus:ring-[var(--ring)] 불가 → 정적 색으로 대체 */
-    --tw-ring-color: #10b981; /* Tailwind ring color 변수 */
+    --tw-ring-color: #10b981;
   }
 
   .textarea {
