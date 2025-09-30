@@ -1,7 +1,7 @@
 /* ===== Custom Webfont (사이트 전역) ===== */
 @font-face {
   font-family: 'SansBold';
-  src: url('/fonts/sansbold.ttf') format('truetype');
+  src: url('public/fonts/sansbold.ttf') format('truetype');
   font-weight: 400;   /* 파일 자체가 Bold 계열이면 실제 표정은 굵게 보일 수 있음 */
   font-style: normal;
   font-display: swap;
