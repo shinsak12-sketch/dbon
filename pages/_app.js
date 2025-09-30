@@ -56,7 +56,6 @@ export default function MyApp({ Component, pageProps }) {
           )}
 
           {/* ✅ 챔피언십 헤더 */}
-// pages/_app.js (챔피언십 헤더 부분만 교체)
 {isChamp && (
   <header className="sticky top-0 z-40 bg-emerald-800 text-white">
     <div className="mx-auto max-w-4xl px-4 py-3">
