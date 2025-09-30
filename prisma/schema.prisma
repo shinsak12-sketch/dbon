@@ -7,6 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/* =========================
+   기존 맛집 도메인
+   ========================= */
 model Region {
   id     Int     @id @default(autoincrement())
   name   String
@@ -70,4 +73,70 @@ model Setting {
   key       String   @id          // 예: "heroUrl", "seasonTitle"
   value     String?
   updatedAt DateTime @updatedAt
+}
+
+/* =========================
+   디비온 챔피언십 도메인
+   ========================= */
+
+model Season {
+  id        Int       @id @default(autoincrement())
+  name      String
+  year      Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  events    Event[]
+
+  @@index([year])
+}
+
+model Event {
+  id          Int       @id @default(autoincrement())
+  seasonId    Int
+  name        String              // 예: Round 1
+  playedAt    DateTime?           // 경기 날짜(선택)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  season      Season    @relation(fields: [seasonId], references: [id])
+  scores      Score[]
+
+  @@index([seasonId])
+  @@index([playedAt])
+}
+
+model Participant {
+  id        Int       @id @default(autoincrement())
+  name      String              // 실명
+  dept      String?             // 소속
+  nickname  String              // 골프존 닉네임(매칭 키)
+  handicap  Float?              // 사전 등록 핸디
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  scores    Score[]
+
+  @@unique([nickname])
+  @@index([name])
+}
+
+model Score {
+  id            Int       @id @default(autoincrement())
+  eventId       Int
+  participantId Int
+  strokes       Int                 // 실제 스코어(타수)
+  points        Int                 // 이벤트 포인트(규칙은 서버에서 산정)
+  rawJson       Json?               // 업로드 원본 행(백업용)
+  createdAt     DateTime  @default(now())
+
+  event         Event       @relation(fields: [eventId], references: [id])
+  participant   Participant @relation(fields: [participantId], references: [id])
+
+  // 한 이벤트에서 한 참가자 1개 기록만
+  @@unique([eventId, participantId], name: "eventId_participantId")
+
+  @@index([eventId])
+  @@index([participantId])
+  @@index([points])
 }
