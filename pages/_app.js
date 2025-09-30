@@ -62,11 +62,11 @@ export default function MyApp({ Component, pageProps }) {
                 <span className="font-extrabold text-lg">DB ON Championship 🏌️</span>
                 <span className="hidden sm:inline text-sm text-gray-200">{CHAMPIONSHIP_SEASON}</span>
                 <Link
-                  href="/champ/register"
-                  className="rounded-lg bg-yellow-400 text-black px-3 py-1 font-semibold hover:bg-yellow-300"
-                >
-                  참가하기
-                </Link>
+  href="/register"
+  className="rounded-lg bg-yellow-400 text-black px-3 py-1 font-semibold hover:bg-yellow-300"
+>
+  참가하기
+</Link>
               </div>
             </header>
           )}
