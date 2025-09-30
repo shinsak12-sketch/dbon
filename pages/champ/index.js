@@ -1,22 +1,10 @@
+// pages/champ/index.js
 import Link from "next/link";
 
 export default function ChampHome() {
   return (
     <main className="min-h-screen bg-emerald-50">
-      {/* 🔹 상단 배너 (한 번만) */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600">
-        <div className="mx-auto max-w-3xl px-4 py-4 flex items-center justify-between">
-          <h1 className="text-white text-xl font-extrabold">
-            DB ON Championship 🏌️‍♂️
-          </h1>
-          <Link
-            href="/champ/register"
-            className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-gray-900 hover:bg-amber-300"
-          >
-            참가하기
-          </Link>
-        </div>
-      </div>
+      {/* ✅ 상단 배너 제거 — 전역(_app.js)에서만 렌더되도록 */}
 
       <div className="mx-auto max-w-3xl px-4 py-6">
         <header className="flex items-center justify-between mb-4">
