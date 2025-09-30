@@ -8,13 +8,15 @@ export default function ChampMe() {
 
   // 로그인 입력
   const [name, setName] = useState("");
+  const [loginNickname, setLoginNickname] = useState(""); // ⬅️ 동명이인 구분용
   const [password, setPassword] = useState("");
+  const [needNickname, setNeedNickname] = useState(false); // 서버가 닉네임 요구하면 표시
+  const [working, setWorking] = useState(false);
 
   // 최초 비번 설정 입력
   const [newPwd, setNewPwd] = useState("");
   const [newPwd2, setNewPwd2] = useState("");
-  const [setPwdNickname, setSetPwdNickname] = useState(""); // ⬅️ 동명이인 구분용 닉네임
-  const [working, setWorking] = useState(false);
+  const [setPwdNickname, setSetPwdNickname] = useState(""); // ⬅️ 동명이인 구분용
 
   // 내 정보/기록
   const [me, setMe] = useState(null);
@@ -27,27 +29,42 @@ export default function ChampMe() {
   const [saving, setSaving] = useState(false);
   const [newPwForChange, setNewPwForChange] = useState("");
 
+  /* ----------------- 액션 ----------------- */
+
   // 로그인
   async function login(e) {
-    e.preventDefault();
+    e?.preventDefault();
     if (!name.trim() || !password) return alert("이름과 비밀번호를 입력하세요.");
     setWorking(true);
     try {
       const r = await fetch("/api/champ/me", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), password }),
+        body: JSON.stringify({
+          name: name.trim(),
+          password,
+          nickname: loginNickname.trim() || undefined, // ⬅️ 동명이인 대응
+        }),
       });
       const data = await r.json();
+
       if (!r.ok) {
+        if (data?.error === "AMBIGUOUS_NAME_NEED_NICKNAME") {
+          // 동명이인 → 닉네임 입력 안내
+          setNeedNickname(true);
+          alert("동명이인이 있어요. 닉네임도 입력해 주세요.");
+          return;
+        }
         if (data?.error === "NO_PASSWORD_SET") {
-          // 최초 비번이 없는 계정 → 비번 설정 단계로 전환
+          // 해당 참가자엔 아직 비번 없음 → 설정 단계로
+          setSetPwdNickname(loginNickname); // 사용자가 입력한 닉 그대로 넘김
           setStep("setpwd");
           return;
         }
         alert(data?.error || "인증 실패");
         return;
       }
+
       // 성공
       setMe(data.me);
       setScores(data.scores || []);
@@ -76,11 +93,16 @@ export default function ChampMe() {
         body: JSON.stringify({
           name: name.trim(),
           password: newPwd,
-          nickname: setPwdNickname.trim() || undefined, // ⬅️ 동명이인일 때 서버에서 필요
+          nickname: setPwdNickname.trim() || undefined, // ⬅️ 동명이인일 때 필수
         }),
       });
       const data = await r.json();
+
       if (!r.ok) {
+        if (data?.error === "AMBIGUOUS_NAME_NEED_NICKNAME") {
+          alert("동명이인이 있어요. 닉네임도 입력해 주세요.");
+          return;
+        }
         if (data?.error === "ALREADY_SET") {
           alert("이미 비밀번호가 설정되어 있어요. 로그인 해주세요.");
           setStep("login");
@@ -90,19 +112,39 @@ export default function ChampMe() {
           alert("해당 이름의 참가자를 찾을 수 없어요. 먼저 참가 등록을 해주세요.");
           return;
         }
-        if (data?.error === "AMBIGUOUS_NAME_NEED_NICKNAME") {
-          alert("동명이인이 있어요. 닉네임도 함께 입력해 주세요.");
-          return;
-        }
         alert(data?.error || "설정 실패");
         return;
       }
-      alert("비밀번호가 설정되었습니다. 이제 로그인해 주세요.");
-      setPassword(""); // 로그인 비번 입력칸 비우기
+
+      // ✅ 설정 성공 → 자동 로그인 시도 (동명이인/닉네임 포함)
+      setPassword(newPwd);
+      setLoginNickname(setPwdNickname);
       setNewPwd("");
       setNewPwd2("");
-      setSetPwdNickname("");
-      setStep("login");
+
+      const r2 = await fetch("/api/champ/me", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          password: newPwd,
+          nickname: setPwdNickname.trim() || undefined,
+        }),
+      });
+      const d2 = await r2.json();
+      if (!r2.ok) {
+        // 혹시라도 실패하면 로그인 화면으로
+        alert("비밀번호가 설정되었습니다. 이제 로그인해 주세요.");
+        setStep("login");
+        return;
+      }
+      // 자동 로그인 성공 → 내정보 화면
+      setMe(d2.me);
+      setScores(d2.scores || []);
+      setNick(d2.me.nickname || "");
+      setDept(d2.me.dept || "");
+      setHandi(d2.me.handicap ?? "");
+      setStep("view");
     } catch {
       alert("네트워크 오류");
     } finally {
@@ -128,6 +170,10 @@ export default function ChampMe() {
       });
       const data = await r.json();
       if (!r.ok) {
+        if (data?.error === "AMBIGUOUS_NAME_NEED_NICKNAME") {
+          alert("동명이인이 있어 닉네임 정보가 필요해요. 관리자에게 문의하세요.");
+          return;
+        }
         alert(data?.error || "수정 실패");
         return;
       }
@@ -139,7 +185,7 @@ export default function ChampMe() {
     }
   }
 
-  /* ---------- 화면 ---------- */
+  /* ----------------- 화면 ----------------- */
 
   // 1) 로그인 화면
   if (step === "login") {
@@ -156,6 +202,23 @@ export default function ChampMe() {
               disabled={working}
             />
           </div>
+
+          {/* ⬇️ 동명이인 대응: 닉네임(선택) 입력칸. 서버에서 요구하면 강조 */}
+          <div>
+            <label className="block font-semibold mb-1">
+              닉네임 <span className={`text-xs ${needNickname ? "text-rose-600 font-bold" : "text-gray-400"}`}>
+                (동명이인이면 입력)
+              </span>
+            </label>
+            <input
+              className={`w-full border rounded-lg p-3 ${needNickname ? "border-rose-400" : ""}`}
+              placeholder="예) 지원신이삭"
+              value={loginNickname}
+              onChange={(e) => setLoginNickname(e.target.value)}
+              disabled={working}
+            />
+          </div>
+
           <div>
             <label className="block font-semibold mb-1">비밀번호</label>
             <input
@@ -166,12 +229,18 @@ export default function ChampMe() {
               disabled={working}
             />
           </div>
+
           <button
             className="w-full rounded-xl bg-emerald-700 text-white p-3 font-semibold disabled:opacity-60"
             disabled={working}
           >
             {working ? "확인 중…" : "확인"}
           </button>
+
+          <p className="text-xs text-gray-500">
+            처음이신가요? 비밀번호가 없다면 다음 화면에서 바로 설정할 수 있어요.
+          </p>
+
           <div className="text-right">
             <Link href="/champ" className="text-sm text-gray-500 hover:underline">
               ← 챔피언십 홈
@@ -201,7 +270,9 @@ export default function ChampMe() {
             />
           </div>
           <div>
-            <label className="block font-semibold mb-1">닉네임 <span className="text-gray-400 text-xs">(동명이인일 때만)</span></label>
+            <label className="block font-semibold mb-1">
+              닉네임 <span className="text-xs text-gray-400">(동명이인이면 필수)</span>
+            </label>
             <input
               className="w-full border rounded-lg p-3"
               placeholder="예) 지원신이삭"
@@ -342,4 +413,4 @@ export default function ChampMe() {
       </section>
     </main>
   );
-                }
+}
