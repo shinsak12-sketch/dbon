@@ -61,7 +61,7 @@ export default function MyApp({ Component, pageProps }) {
     <div className="mx-auto max-w-4xl px-4 py-3 flex items-center gap-2">
       <span className="font-extrabold text-lg flex-1">DB ON Championship 🏌️</span>
       <Link href="/champ/me" className="rounded-lg border border-white/40 px-3 py-1 text-sm hover:bg-white/10">내 정보</Link>
-      <Link href="/champ/register" className="rounded-lg bg-yellow-400 text-black px-3 py-1 font-semibold hover:bg-yellow-300">참가하기</Link>
+      <Link href="/register" className="rounded-lg bg-yellow-400 text-black px-3 py-1 font-semibold hover:bg-yellow-300">선수등록</Link>
     </div>
   </header>
 )}
