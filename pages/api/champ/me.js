@@ -2,38 +2,60 @@
 import prisma from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
 
-/**
- * POST  /api/champ/me      -> 로그인(이름+비번)
- * PUT   /api/champ/me      -> 내 정보 수정 / 비번변경
- *  - 최초 비번 미설정 상태(passwordHash=null)일 때도 안전하게 처리
- */
-
 export default async function handler(req, res) {
   if (req.method === "POST") {
+    // 로그인
     try {
-      const { name, password } = req.body || {};
-      if (!name || !String(name).trim()) {
-        return res.status(400).json({ error: "NAME_REQUIRED" });
+      const { name, password, nickname } = req.body || {};
+      if (!name || !password) {
+        return res.status(400).json({ error: "NAME_AND_PASSWORD_REQUIRED" });
       }
-      const me = await prisma.participant.findFirst({
+
+      // 동명이인 대비: 이름으로 찾고, 여러 명이면 닉네임 필요
+      const people = await prisma.participant.findMany({
         where: { name: String(name).trim() },
       });
-      if (!me) return res.status(404).json({ error: "NOT_FOUND" });
 
-      // 비밀번호 미설정
-      if (!me.passwordHash) {
-        return res.status(409).json({ error: "NO_PASSWORD_SET" });
+      if (people.length === 0) {
+        return res.status(404).json({ error: "PARTICIPANT_NOT_FOUND" });
+      }
+      let p = people[0];
+      if (people.length > 1) {
+        if (!nickname) {
+          return res.status(400).json({ error: "NEED_NICKNAME" });
+        }
+        p = people.find((x) => (x.nickname || "").trim() === String(nickname).trim());
+        if (!p) {
+          return res.status(404).json({ error: "PARTICIPANT_NOT_FOUND" });
+        }
       }
 
-      const ok = await bcrypt.compare(String(password || ""), me.passwordHash);
-      if (!ok) return res.status(403).json({ error: "INVALID_PASSWORD" });
+      if (!p.passhash) {
+        // 비밀번호가 아직 없는 계정
+        return res.status(400).json({ error: "NO_PASSWORD_SET" });
+      }
 
+      const ok = await bcrypt.compare(String(password), p.passhash);
+      if (!ok) return res.status(401).json({ error: "WRONG_PASSWORD" });
+
+      // 기록 로드
       const scores = await prisma.score.findMany({
-        where: { participantId: me.id },
-        orderBy: { id: "desc" },
+        where: { participantId: p.id },
         include: { event: { include: { season: true } } },
+        orderBy: [{ createdAt: "desc" }],
       });
-      return res.status(200).json({ me, scores });
+
+      return res.status(200).json({
+        ok: true,
+        me: {
+          id: p.id,
+          name: p.name,
+          dept: p.dept,
+          nickname: p.nickname,
+          handicap: p.handicap,
+        },
+        scores,
+      });
     } catch (e) {
       console.error(e);
       return res.status(500).json({ error: "SERVER_ERROR" });
@@ -41,75 +63,52 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "PUT") {
+    // 내정보 수정(닉/소속/핸디, 새 비번)
     try {
-      const {
-        name,           // 로그인/식별용
-        password,       // 현재 비번(변경 아님)
-        // 수정 필드
-        dept,
-        nickname,
-        handicap,
-        newPassword,    // 새 비번(설정/변경 공용)
-      } = req.body || {};
-
-      if (!name || !String(name).trim()) {
-        return res.status(400).json({ error: "NAME_REQUIRED" });
+      const { name, password, nickname, dept, handicap, newPassword } = req.body || {};
+      if (!name || !password) {
+        return res.status(400).json({ error: "NAME_AND_PASSWORD_REQUIRED" });
       }
 
-      const me = await prisma.participant.findFirst({
-        where: { name: String(name).trim() },
-      });
-      if (!me) return res.status(404).json({ error: "NOT_FOUND" });
+      // 동일한 동명이인 로직
+      const people = await prisma.participant.findMany({ where: { name: String(name).trim() } });
+      if (people.length === 0) return res.status(404).json({ error: "PARTICIPANT_NOT_FOUND" });
 
-      // ===== A) 최초 설정 분기 (passwordHash가 없음) =====
-      if (!me.passwordHash) {
-        if (!newPassword || String(newPassword).trim().length < 4) {
-          return res.status(400).json({ error: "NEW_PASSWORD_TOO_SHORT" });
-        }
-        const hash = await bcrypt.hash(String(newPassword).trim(), 10);
-        const updated = await prisma.participant.update({
-          where: { id: me.id },
-          data: {
-            passwordHash: hash,
-            // 프로필 필드도 같이 수정 허용
-            dept: typeof dept === "string" ? dept : me.dept,
-            nickname: typeof nickname === "string" ? nickname : me.nickname,
-            handicap:
-              typeof handicap === "string" && handicap !== ""
-                ? Number(handicap)
-                : typeof handicap === "number"
-                ? handicap
-                : me.handicap,
-          },
-        });
-        return res.status(200).json({ me: updated, firstSet: true });
+      let p = people[0];
+      if (people.length > 1) {
+        if (!nickname) return res.status(400).json({ error: "NEED_NICKNAME" });
+        p = people.find((x) => (x.nickname || "").trim() === String(nickname).trim());
+        if (!p) return res.status(404).json({ error: "PARTICIPANT_NOT_FOUND" });
       }
 
-      // ===== B) 일반 수정/변경: 현재 비번 검증 후 진행 =====
-      const ok = await bcrypt.compare(String(password || ""), me.passwordHash);
-      if (!ok) return res.status(403).json({ error: "INVALID_PASSWORD" });
+      if (!p.passhash) return res.status(400).json({ error: "NO_PASSWORD_SET" });
+      const ok = await bcrypt.compare(String(password), p.passhash);
+      if (!ok) return res.status(401).json({ error: "WRONG_PASSWORD" });
 
       const data = {
-        dept: typeof dept === "string" ? dept : me.dept,
-        nickname: typeof nickname === "string" ? nickname : me.nickname,
-        handicap:
-          typeof handicap === "string" && handicap !== ""
-            ? Number(handicap)
-            : typeof handicap === "number"
-            ? handicap
-            : me.handicap,
+        dept: typeof dept === "string" ? dept : p.dept,
+        nickname: typeof nickname === "string" ? nickname : p.nickname,
       };
-
-      if (newPassword && String(newPassword).trim().length >= 4) {
-        data.passwordHash = await bcrypt.hash(String(newPassword).trim(), 10);
+      if (handicap !== undefined && handicap !== null && String(handicap).trim() !== "") {
+        const h = Number(handicap);
+        if (!Number.isNaN(h)) data.handicap = h;
+      }
+      if (newPassword && String(newPassword).trim() !== "") {
+        data.passhash = await bcrypt.hash(String(newPassword), 10);
       }
 
-      const updated = await prisma.participant.update({
-        where: { id: me.id },
-        data,
-      });
+      const updated = await prisma.participant.update({ where: { id: p.id }, data });
 
-      return res.status(200).json({ me: updated });
+      return res.status(200).json({
+        ok: true,
+        me: {
+          id: updated.id,
+          name: updated.name,
+          dept: updated.dept,
+          nickname: updated.nickname,
+          handicap: updated.handicap,
+        },
+      });
     } catch (e) {
       console.error(e);
       return res.status(500).json({ error: "SERVER_ERROR" });
