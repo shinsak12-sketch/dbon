@@ -7,9 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// =========================
-// 기존 맛집 도메인
-// =========================
+/* =========================
+   기존 맛집 도메인
+   ========================= */
 model Region {
   id     Int     @id @default(autoincrement())
   name   String
@@ -32,13 +32,12 @@ model Place {
   address       String?
   mapUrl        String?
 
-  // 레거시(단일) — 유지
+  // 레거시(단일)
   coverImage    String?
 
   // 새 다중 이미지
   coverImages   String[]  @default([])
 
-  // 소개/작성/비번
   description   String?   @db.Text
   author        String?
   ownerPassHash String?
@@ -74,15 +73,15 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
-// =========================
-// 디비온 챔피언십 도메인 (champ)
-// =========================
+/* =========================
+   디비온 챔피언십 도메인
+   ========================= */
 model Season {
   id        Int       @id @default(autoincrement())
   name      String
   year      Int
-  slug      String    @unique               // 예: "2025"
-  status    String    @default("open")      // open|closed|archived
+  slug      String    @unique              // 예: "2025"
+  status    String    @default("open")     // open|closed|archived
   startDate DateTime?
   endDate   DateTime?
 
@@ -99,8 +98,8 @@ model Event {
   id          Int       @id @default(autoincrement())
   seasonId    Int
   name        String
-  slug        String     @unique            // 예: "2025-r1"
-  status      String     @default("draft")  // draft|open|closed|published
+  slug        String     @unique           // 예: "2025-r1"
+  status      String     @default("draft") // draft|open|closed|published
   playedAt    DateTime?
 
   season      Season     @relation(fields: [seasonId], references: [id], onDelete: Cascade)
@@ -114,17 +113,17 @@ model Event {
 }
 
 model Participant {
-  id        Int       @id @default(autoincrement())
-  name      String                 // 실명
-  dept      String?                // 소속
-  nickname  String                 // 골프존 닉네임(매칭 키)
-  handicap  Float?                 // 기본 핸디
-  passhash  String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id           Int       @id @default(autoincrement())
+  name         String                 // 실명
+  dept         String?                // 소속
+  nickname     String                 // 골프존 닉네임(매칭 키)
+  handicap     Float?                 // 기본 핸디
+  passwordHash String?                // ⬅️ 통일된 필드명
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  scores    Score[]
-  regs      Registration[]
+  scores       Score[]
+  regs         Registration[]
 
   @@unique([nickname])
   @@index([name])
