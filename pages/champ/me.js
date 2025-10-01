@@ -8,15 +8,15 @@ export default function ChampMe() {
 
   // 로그인 입력
   const [name, setName] = useState("");
-  const [loginNickname, setLoginNickname] = useState("");
-  const [showNickname, setShowNickname] = useState(false); // 닉 입력칸 토글
+  const [loginNickname, setLoginNickname] = useState(""); // 동명이인일 때만 사용
   const [password, setPassword] = useState("");
+  const [needNickname, setNeedNickname] = useState(false); // 서버가 요청하면 true
   const [working, setWorking] = useState(false);
 
   // 최초 비번 설정 입력
   const [newPwd, setNewPwd] = useState("");
   const [newPwd2, setNewPwd2] = useState("");
-  const [setPwdNickname, setSetPwdNickname] = useState("");
+  const [setPwdNickname, setSetPwdNickname] = useState(""); // 동명이인 구분용
 
   // 내 정보/기록
   const [me, setMe] = useState(null);
@@ -35,7 +35,6 @@ export default function ChampMe() {
   async function login(e) {
     e?.preventDefault();
     if (!name.trim() || !password) return alert("이름과 비밀번호를 입력하세요.");
-
     setWorking(true);
     try {
       const r = await fetch("/api/champ/me", {
@@ -44,20 +43,23 @@ export default function ChampMe() {
         body: JSON.stringify({
           name: name.trim(),
           password,
-          nickname: loginNickname.trim() || undefined, // 동명이인 대응
+          nickname: needNickname ? (loginNickname.trim() || undefined) : undefined,
         }),
       });
       const data = await r.json();
 
       if (!r.ok) {
-        // 동명이인: 닉네임 요구
         if (data?.error === "AMBIGUOUS_NAME_NEED_NICKNAME") {
-          setShowNickname(true);
+          // 동명이인 감지됨 → 닉네임 칸을 보여주고 포커스
+          setNeedNickname(true);
+          requestAnimationFrame(() =>
+            document.getElementById("login-nickname")?.focus()
+          );
           alert("동명이인이 있어요. 닉네임도 입력해 주세요.");
           return;
         }
-        // 비밀번호가 아직 없음 → 설정 화면으로
         if (data?.error === "NO_PASSWORD_SET") {
+          // 해당 참가자엔 아직 비번 없음 → 설정 단계로
           setSetPwdNickname(loginNickname);
           setStep("setpwd");
           return;
@@ -72,6 +74,7 @@ export default function ChampMe() {
       setNick(data.me.nickname || "");
       setDept(data.me.dept || "");
       setHandi(data.me.handicap ?? "");
+      setNeedNickname(false);
       setStep("view");
     } catch {
       alert("네트워크 오류");
@@ -86,7 +89,6 @@ export default function ChampMe() {
     if (!name.trim()) return alert("이름을 입력하세요.");
     if (!newPwd.trim()) return alert("새 비밀번호를 입력하세요.");
     if (newPwd !== newPwd2) return alert("비밀번호 확인이 일치하지 않습니다.");
-
     setWorking(true);
     try {
       const r = await fetch("/api/champ/participants/set-password", {
@@ -134,14 +136,11 @@ export default function ChampMe() {
         }),
       });
       const d2 = await r2.json();
-
       if (!r2.ok) {
         alert("비밀번호가 설정되었습니다. 이제 로그인해 주세요.");
         setStep("login");
         return;
       }
-
-      // 자동 로그인 성공
       setMe(d2.me);
       setScores(d2.scores || []);
       setNick(d2.me.nickname || "");
@@ -164,15 +163,15 @@ export default function ChampMe() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          password,                  // 현재 비번으로 인증
+          password,                 // 현재 로그인 비번
+          matchNickname: me?.nickname, // ✅ 동명이인 매칭용(현재 닉)
           dept,
-          nickname: nick,            // 변경할 값
-          handicap: String(handi),   // 서버에서 숫자 변환
-          newPassword: newPwForChange || undefined, // 있으면 변경
+          nickname: nick,           // 바꿀 새 닉
+          handicap: String(handi),  // 서버에서 숫자 변환
+          newPassword: newPwForChange, // 있으면 변경
         }),
       });
       const data = await r.json();
-
       if (!r.ok) {
         if (data?.error === "AMBIGUOUS_NAME_NEED_NICKNAME") {
           alert("동명이인이 있어 닉네임 정보가 필요해요. 관리자에게 문의하세요.");
@@ -181,12 +180,9 @@ export default function ChampMe() {
         alert(data?.error || "수정 실패");
         return;
       }
-
-      // 성공
-      setMe(data.me);
-      if (newPwForChange) setPassword(newPwForChange); // 클라 상태도 갱신
-      setNewPwForChange("");
       alert("저장되었습니다.");
+      setMe(data.me);
+      setNewPwForChange("");
     } finally {
       setSaving(false);
     }
@@ -210,28 +206,24 @@ export default function ChampMe() {
             />
           </div>
 
-          {/* 동명이인 대응: 필요할 때만 표시, 안 보일 때는 토글로 열 수 있음 */}
-          {showNickname ? (
-            <div>
-              <label className="block font-semibold mb-1">
-                닉네임 <span className="text-xs text-rose-600 font-bold">(동명이인이면 필수)</span>
-              </label>
-              <input
-                className="w-full border rounded-lg p-3 border-rose-400"
-                placeholder="예) 지원신이삭"
-                value={loginNickname}
-                onChange={(e) => setLoginNickname(e.target.value)}
-                disabled={working}
-              />
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowNickname(true)}
-              className="text-sm text-gray-500 underline underline-offset-4"
-            >
-              동명이인인가요? 닉네임 입력하기
-            </button>
+          {/* ⬇️ 처음엔 감춤. 서버가 모호함을 감지했을 때만 표시 */}
+          {needNickname && (
+            <>
+              <div className="rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-900 p-3 text-sm">
+                동명이인이 확인되었어요. 본인의 <b>골프존 닉네임</b>을 입력해 주세요.
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">닉네임</label>
+                <input
+                  id="login-nickname"
+                  className="w-full border rounded-lg p-3 border-rose-300"
+                  placeholder="예) 지원신이삭"
+                  value={loginNickname}
+                  onChange={(e) => setLoginNickname(e.target.value)}
+                  disabled={working}
+                />
+              </div>
+            </>
           )}
 
           <div>
@@ -428,4 +420,4 @@ export default function ChampMe() {
       </section>
     </main>
   );
-}
+                }
