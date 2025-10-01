@@ -6,7 +6,7 @@ import Link from "next/link";
 const ADMIN_PASS = "dbsonsa"; // 간편 보호 (필요하면 .env로 분리)
 
 export default function Admin() {
-  // ── 간단 로그인 ────────────────────────────────────────────────
+  // ── 간단 로그인 ───────────────────────────────
   const [pwd, setPwd] = useState("");
   const [authed, setAuthed] = useState(false);
   function tryLogin(e) {
@@ -15,7 +15,7 @@ export default function Admin() {
     else alert("비밀번호가 틀렸습니다.");
   }
 
-  // ── 랜딩 배경 이미지 관리 ─────────────────────────────────────
+  // ── 랜딩 배경 이미지 관리 ─────────────────────
   const [bgUrl, setBgUrl] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -45,7 +45,7 @@ export default function Admin() {
     }
   }
 
-  // ── 선수 검색 & 비밀번호 초기화 ───────────────────────────────
+  // ── 선수 검색 & 관리 ───────────────────────────
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState([]);
@@ -84,13 +84,30 @@ export default function Admin() {
       const data = await r.json();
       if (!r.ok) return alert(data?.error || "초기화 실패");
       alert("초기화 완료. 선수에게 새 비밀번호를 안내하세요.");
-      search(); // 목록 갱신
+      search();
     } catch {
       alert("네트워크 오류");
     }
   }
 
-  // ── 로그인 화면 ───────────────────────────────────────────────
+  async function deleteParticipant(id) {
+    if (!confirm("정말 이 선수를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
+    try {
+      const r = await fetch("/api/champ/admin/participants", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin: ADMIN_PASS, id }),
+      });
+      const data = await r.json();
+      if (!r.ok) return alert(data?.error || "삭제 실패");
+      alert("삭제되었습니다.");
+      search();
+    } catch {
+      alert("네트워크 오류");
+    }
+  }
+
+  // ── 로그인 화면 ───────────────────────────────
   if (!authed) {
     return (
       <main className="max-w-md mx-auto p-6">
@@ -111,7 +128,7 @@ export default function Admin() {
     );
   }
 
-  // ── 관리자 대시보드 ───────────────────────────────────────────
+  // ── 관리자 대시보드 ───────────────────────────
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-8">
       <div className="flex items-center justify-between">
@@ -126,7 +143,6 @@ export default function Admin() {
         <h2 className="text-xl font-bold">① 랜딩 배경 바꾸기 (덮어쓰기)</h2>
         {bgUrl ? (
           <div className="rounded-xl overflow-hidden border">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={bgUrl} alt="현재 배경" className="w-full" />
           </div>
         ) : (
@@ -139,7 +155,7 @@ export default function Admin() {
         />
       </section>
 
-      {/* ② 챔피언십 관리 링크 */}
+      {/* ② 챔피언십 관리 */}
       <section className="rounded-2xl border p-5 space-y-4 bg-white">
         <h2 className="text-xl font-bold">② 디비온 챔피언십 관리</h2>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -158,9 +174,9 @@ export default function Admin() {
         </div>
       </section>
 
-      {/* ③ 선수 비밀번호 초기화 */}
+      {/* ③ 선수 관리 */}
       <section className="rounded-2xl border p-5 space-y-4 bg-white">
-        <h2 className="text-xl font-bold">③ 선수 비밀번호 초기화</h2>
+        <h2 className="text-xl font-bold">③ 선수 관리</h2>
 
         <div className="flex gap-2">
           <input
@@ -182,26 +198,18 @@ export default function Admin() {
         {list.length > 0 ? (
           <ul className="divide-y border rounded-xl">
             {list.map((p) => (
-              <li key={p.id} className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <li
+                key={p.id}
+                className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div>
                   <div className="font-semibold">
-                    [{p.id}] {p.name} <span className="text-gray-500">/ {p.dept || "소속없음"}</span>
+                    [{p.id}] {p.name}{" "}
+                    <span className="text-gray-500">/ {p.dept || "소속없음"}</span>
                   </div>
                   <div className="text-sm text-gray-600">
-                    닉네임: <b>{p.nickname}</b> · 핸디: {p.handicap ?? "-"} · 생성:
-                    {" "}{new Date(p.createdAt).toLocaleDateString("ko-KR")}
-                  </div>
-                  <div className="mt-1 text-xs">
-                    상태:{" "}
-                    {p.hasPassword ? (
-                      <span className="inline-block rounded bg-emerald-100 text-emerald-800 px-2 py-0.5">
-                        비밀번호 설정됨
-                      </span>
-                    ) : (
-                      <span className="inline-block rounded bg-rose-100 text-rose-800 px-2 py-0.5">
-                        비밀번호 없음
-                      </span>
-                    )}
+                    닉네임: <b>{p.nickname}</b> · 핸디: {p.handicap ?? "-"} · 생성:{" "}
+                    {new Date(p.createdAt).toLocaleDateString("ko-KR")}
                   </div>
                 </div>
 
@@ -209,7 +217,7 @@ export default function Admin() {
                   <input
                     type="text"
                     placeholder="임시 비밀번호"
-                    className="border rounded-lg p-2 w-40"
+                    className="border rounded-lg p-2 w-32"
                     id={`tpw-${p.id}`}
                   />
                   <button
@@ -218,7 +226,13 @@ export default function Admin() {
                     }
                     className="rounded-lg bg-yellow-500 text-black px-3 py-2 font-semibold"
                   >
-                    초기화
+                    비번 초기화
+                  </button>
+                  <button
+                    onClick={() => deleteParticipant(p.id)}
+                    className="rounded-lg bg-rose-600 text-white px-3 py-2 font-semibold"
+                  >
+                    삭제
                   </button>
                 </div>
               </li>
@@ -229,9 +243,9 @@ export default function Admin() {
         )}
 
         <p className="text-xs text-gray-500">
-          * 동명이인은 <b>소속/닉네임/생성일/ID</b>로 식별하세요. 초기화는 해당 <b>ID 1명</b>만 적용됩니다.
+          * 동명이인은 <b>소속/닉네임/생성일/ID</b>로 구분하세요. 조작은 해당 <b>ID</b> 1명만 적용됩니다.
         </p>
       </section>
     </main>
   );
-        }
+}
