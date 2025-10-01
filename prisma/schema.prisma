@@ -7,9 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* =========================
-   기존 맛집 도메인
-   ========================= */
+// ===== Legacy: 맛집 도메인 =====
+
 model Region {
   id     Int     @id @default(autoincrement())
   name   String
@@ -73,9 +72,8 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
-/* =========================
-   디비온 챔피언십 도메인
-   ========================= */
+// ===== DBON Championship 도메인 =====
+
 model Season {
   id        Int       @id @default(autoincrement())
   name      String
@@ -118,7 +116,7 @@ model Participant {
   dept         String?                // 소속
   nickname     String                 // 골프존 닉네임(매칭 키)
   handicap     Float?                 // 기본 핸디
-  passwordHash String?                // ⬅️ 통일된 필드명
+  passwordHash String?                // 통일된 필드명
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -146,10 +144,10 @@ model Registration {
 }
 
 model Score {
-  id               Int        @id @default(autoincrement())
+  id               Int         @id @default(autoincrement())
   eventId          Int
-  externalNickname String     // 업로드 원본 닉네임
-  participantId    Int?       // 매칭되면 채움
+  externalNickname String      // 업로드 원본 닉네임
+  participantId    Int?        // 매칭되면 채움
   strokes          Int?
   net              Float?
   points           Int?
@@ -157,7 +155,7 @@ model Score {
   rankNet          Int?
   rankPoints       Int?
   rawJson          Json?
-  matched          Boolean    @default(false)
+  matched          Boolean     @default(false)
 
   event            Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   participant      Participant? @relation(fields: [participantId], references: [id])
