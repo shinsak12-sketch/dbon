@@ -7,7 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+//
 // ===== Legacy: 맛집 도메인 =====
+//
 
 model Region {
   id     Int     @id @default(autoincrement())
@@ -31,10 +33,9 @@ model Place {
   address       String?
   mapUrl        String?
 
-  // 레거시(단일)
+  // 레거시 단일
   coverImage    String?
-
-  // 새 다중 이미지
+  // 다중 이미지
   coverImages   String[]  @default([])
 
   description   String?   @db.Text
@@ -54,17 +55,19 @@ model Review {
   content   String
   author    String?
 
-  // 레거시(단일)
+  // 레거시 단일
   imageUrl   String?
-
-  // 새 다중 이미지
+  // 다중 이미지
   imageUrls  String[] @default([])
 
-  // 간단 보호용 PIN
-  pin       String?
+  pin       String?   // 간단 보호용 PIN
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 }
+
+//
+// ===== 시스템 세팅 (공용) =====
+//
 
 model Setting {
   key       String   @id
@@ -72,7 +75,9 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+//
 // ===== DBON Championship 도메인 =====
+//
 
 model Season {
   id        Int       @id @default(autoincrement())
@@ -100,6 +105,12 @@ model Event {
   status      String     @default("draft") // draft|open|closed|published
   playedAt    DateTime?
 
+  // ✅ 추가: 홈/개요용 필드
+  overview    String?   @db.Text           // 대회 소개
+  rules       String?   @db.Text           // 경기 방식
+  prizes      String?   @db.Text           // 상품 설명
+  tier        Int       @default(100)      // 120 / 100 / 80
+
   season      Season     @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   scores      Score[]
 
@@ -110,13 +121,22 @@ model Event {
   @@index([playedAt])
 }
 
+model Notice {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String   @db.Text
+  pinned    Boolean  @default(false)       // 상단 고정
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Participant {
   id           Int       @id @default(autoincrement())
   name         String                 // 실명
   dept         String?                // 소속
   nickname     String                 // 골프존 닉네임(매칭 키)
   handicap     Float?                 // 기본 핸디
-  passwordHash String?                // 통일된 필드명
+  passwordHash String?                // 로그인 보호용
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -144,10 +164,10 @@ model Registration {
 }
 
 model Score {
-  id               Int         @id @default(autoincrement())
+  id               Int          @id @default(autoincrement())
   eventId          Int
-  externalNickname String      // 업로드 원본 닉네임
-  participantId    Int?        // 매칭되면 채움
+  externalNickname String       // 업로드 원본 닉네임
+  participantId    Int?         // 매칭되면 채움
   strokes          Int?
   net              Float?
   points           Int?
@@ -155,12 +175,12 @@ model Score {
   rankNet          Int?
   rankPoints       Int?
   rawJson          Json?
-  matched          Boolean     @default(false)
+  matched          Boolean      @default(false)
 
-  event            Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event            Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
   participant      Participant? @relation(fields: [participantId], references: [id])
 
-  createdAt        DateTime    @default(now())
+  createdAt        DateTime     @default(now())
 
   @@unique([eventId, externalNickname])
   @@unique([eventId, participantId])
