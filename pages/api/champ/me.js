@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 
 const ERR = {
   NEED_NAME_PW: "NAME_AND_PASSWORD_REQUIRED",
-  NOT_FOUND: "PARTICIPANT_NOT_FOUND",
+  NOT_FOUND: "해당 선수가 등록되어 있지 않습니다. 참가 등록을 먼저 해주세요.", // ✅ 한국어로 안내
   NEED_NICK: "AMBIGUOUS_NAME_NEED_NICKNAME",
   NO_PW: "NO_PASSWORD_SET",
   WRONG_PW: "WRONG_PASSWORD",
