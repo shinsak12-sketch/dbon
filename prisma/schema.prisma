@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* ========== Legacy: 맛집 도메인 ========== */
+/* ---------- Legacy: Places ---------- */
 
 model Region {
   id     Int     @id @default(autoincrement())
@@ -20,24 +20,18 @@ model Place {
   id            Int       @id @default(autoincrement())
   name          String
   slug          String    @unique
-
   region        Region    @relation(fields: [regionId], references: [id])
   regionId      Int
-
   avgRating     Float     @default(0)
   reviewsCount  Int       @default(0)
   reviews       Review[]
-
   address       String?
   mapUrl        String?
-
   coverImage    String?
   coverImages   String[]  @default([])
-
   description   String?   @db.Text
   author        String?
   ownerPassHash String?
-
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -46,20 +40,16 @@ model Review {
   id        Int      @id @default(autoincrement())
   place     Place    @relation(fields: [placeId], references: [id])
   placeId   Int
-
   rating    Float
   content   String
   author    String?
-
   imageUrl   String?
   imageUrls  String[] @default([])
-
   pin       String?
-
   createdAt DateTime  @default(now())
 }
 
-/* ========== 공용 KV 세팅 ========== */
+/* ---------- Settings (KV) ---------- */
 
 model Setting {
   key       String   @id
@@ -67,20 +57,18 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
-/* ========== DBON Championship ========== */
+/* ---------- DBON Championship ---------- */
 
 model Season {
   id        Int       @id @default(autoincrement())
   name      String
   year      Int
-  slug      String    @unique              // 예: "2025"
-  status    String    @default("open")     // open|closed|archived
+  slug      String    @unique
+  status    String    @default("open")
   startDate DateTime?
   endDate   DateTime?
-
   events    Event[]
   regs      Registration[]
-
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -92,23 +80,17 @@ model Event {
   seasonId    Int
   name        String
   slug        String         @unique
-
-  // UI 추가 필드
-  roundNo     String?                          // 몇회 (예: "제1회")
-  organizer   String?                          // 주관부서
-  manager     String?                          // 부서담당자
-  beginAt     DateTime?                        // 시작
-  endAt       DateTime?                        // 종료
+  roundNo     String?
+  organizer   String?
+  manager     String?
+  beginAt     DateTime?
+  endAt       DateTime?
   classType   EventClassType @default(OPEN)
   state       EventState     @default(OVERVIEW)
   mode        EventMode      @default(STROKE)
   adjust      ScoreAdjust    @default(NONE)
   tier        Int            @default(100)
-
-  // 레거시 호환
   playedAt    DateTime?
-
-  // 홈/개요
   overview    String?        @db.Text
   rules       String?        @db.Text
   prizes      String?        @db.Text
@@ -146,7 +128,6 @@ model Participant {
   passwordHash String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-
   scores       Score[]
   regs         Registration[]
 
@@ -159,10 +140,8 @@ model Registration {
   seasonId      Int
   participantId Int
   handicap      Float?
-
   season        Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
-
   createdAt     DateTime    @default(now())
 
   @@unique([seasonId, participantId])
@@ -183,10 +162,8 @@ model Score {
   rankPoints       Int?
   rawJson          Json?
   matched          Boolean      @default(false)
-
   event            Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
   participant      Participant? @relation(fields: [participantId], references: [id])
-
   createdAt        DateTime     @default(now())
 
   @@unique([eventId, externalNickname])
@@ -196,7 +173,7 @@ model Score {
   @@index([points])
 }
 
-/* ========== Enums ========== */
+/* ---------- Enums ---------- */
 
 enum EventClassType {
   OPEN
