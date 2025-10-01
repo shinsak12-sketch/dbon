@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 
 const ERR = {
   NEED_NAME_PW: "NAME_AND_PASSWORD_REQUIRED",
-  NOT_FOUND: "해당 선수가 등록되어 있지 않습니다. 참가 등록을 먼저 해주세요.", // ✅ 한국어로 안내
+  NOT_FOUND: "해당 선수가 등록되어 있지 않습니다. 참가 등록을 먼저 해주세요.",
   NEED_NICK: "AMBIGUOUS_NAME_NEED_NICKNAME",
   NO_PW: "NO_PASSWORD_SET",
   WRONG_PW: "WRONG_PASSWORD",
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
 
       const nameCond = { equals: name, mode: "insensitive" };
 
-      // 닉네임이 오면: 이름+닉 단일 조회 → 더 정확하고 효율적
+      // 닉네임이 오면: 이름+닉 단일 조회
       let p;
       if (nickname) {
         p = await prisma.participant.findFirst({
@@ -50,21 +50,19 @@ export default async function handler(req, res) {
         p = people[0];
       }
 
-      if (!p.passhash) {
+      // ✅ 필드 통일: passwordHash 사용
+      if (!p.passwordHash) {
         return res.status(400).json({ error: ERR.NO_PW });
       }
 
-      const ok = await bcrypt.compare(password, p.passhash);
+      const ok = await bcrypt.compare(password, p.passwordHash);
       if (!ok) return res.status(401).json({ error: ERR.WRONG_PW });
 
-      // 기록 로드: 경기일 내림차순(없으면 createdAt)
+      // 기록 로드
       const scores = await prisma.score.findMany({
         where: { participantId: p.id },
         include: { event: { include: { season: true } } },
-        orderBy: [
-          { event: { playedAt: "desc" } },
-          { createdAt: "desc" },
-        ],
+        orderBy: [{ createdAt: "desc" }],
       });
 
       return res.status(200).json({
@@ -122,9 +120,10 @@ export default async function handler(req, res) {
         p = people[0];
       }
 
-      if (!p.passhash) return res.status(400).json({ error: ERR.NO_PW });
+      // ✅ 필드 통일
+      if (!p.passwordHash) return res.status(400).json({ error: ERR.NO_PW });
 
-      const ok = await bcrypt.compare(password, p.passhash);
+      const ok = await bcrypt.compare(password, p.passwordHash);
       if (!ok) return res.status(401).json({ error: ERR.WRONG_PW });
 
       const data = {};
@@ -136,8 +135,9 @@ export default async function handler(req, res) {
         if (!Number.isNaN(h)) data.handicap = h;
       }
 
+      // ✅ 새 비번 저장도 passwordHash 로
       if (newPassword && trim(newPassword) !== "") {
-        data.passhash = await bcrypt.hash(String(newPassword), 10);
+        data.passwordHash = await bcrypt.hash(String(newPassword), 10);
       }
 
       const updated = await prisma.participant.update({
