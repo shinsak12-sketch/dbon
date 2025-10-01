@@ -8,15 +8,15 @@ export default function ChampMe() {
 
   // 로그인 입력
   const [name, setName] = useState("");
-  const [loginNickname, setLoginNickname] = useState(""); // ⬅️ 동명이인 구분용
+  const [loginNickname, setLoginNickname] = useState("");
+  const [showNickname, setShowNickname] = useState(false); // 닉 입력칸 토글
   const [password, setPassword] = useState("");
-  const [needNickname, setNeedNickname] = useState(false); // 서버가 닉네임 요구하면 표시
   const [working, setWorking] = useState(false);
 
   // 최초 비번 설정 입력
   const [newPwd, setNewPwd] = useState("");
   const [newPwd2, setNewPwd2] = useState("");
-  const [setPwdNickname, setSetPwdNickname] = useState(""); // ⬅️ 동명이인 구분용
+  const [setPwdNickname, setSetPwdNickname] = useState("");
 
   // 내 정보/기록
   const [me, setMe] = useState(null);
@@ -35,6 +35,7 @@ export default function ChampMe() {
   async function login(e) {
     e?.preventDefault();
     if (!name.trim() || !password) return alert("이름과 비밀번호를 입력하세요.");
+
     setWorking(true);
     try {
       const r = await fetch("/api/champ/me", {
@@ -43,21 +44,21 @@ export default function ChampMe() {
         body: JSON.stringify({
           name: name.trim(),
           password,
-          nickname: loginNickname.trim() || undefined, // ⬅️ 동명이인 대응
+          nickname: loginNickname.trim() || undefined, // 동명이인 대응
         }),
       });
       const data = await r.json();
 
       if (!r.ok) {
+        // 동명이인: 닉네임 요구
         if (data?.error === "AMBIGUOUS_NAME_NEED_NICKNAME") {
-          // 동명이인 → 닉네임 입력 안내
-          setNeedNickname(true);
+          setShowNickname(true);
           alert("동명이인이 있어요. 닉네임도 입력해 주세요.");
           return;
         }
+        // 비밀번호가 아직 없음 → 설정 화면으로
         if (data?.error === "NO_PASSWORD_SET") {
-          // 해당 참가자엔 아직 비번 없음 → 설정 단계로
-          setSetPwdNickname(loginNickname); // 사용자가 입력한 닉 그대로 넘김
+          setSetPwdNickname(loginNickname);
           setStep("setpwd");
           return;
         }
@@ -85,6 +86,7 @@ export default function ChampMe() {
     if (!name.trim()) return alert("이름을 입력하세요.");
     if (!newPwd.trim()) return alert("새 비밀번호를 입력하세요.");
     if (newPwd !== newPwd2) return alert("비밀번호 확인이 일치하지 않습니다.");
+
     setWorking(true);
     try {
       const r = await fetch("/api/champ/participants/set-password", {
@@ -93,7 +95,7 @@ export default function ChampMe() {
         body: JSON.stringify({
           name: name.trim(),
           password: newPwd,
-          nickname: setPwdNickname.trim() || undefined, // ⬅️ 동명이인일 때 필수
+          nickname: setPwdNickname.trim() || undefined, // 동명이인일 때 필수
         }),
       });
       const data = await r.json();
@@ -116,7 +118,7 @@ export default function ChampMe() {
         return;
       }
 
-      // ✅ 설정 성공 → 자동 로그인 시도 (동명이인/닉네임 포함)
+      // 설정 성공 → 자동 로그인 시도
       setPassword(newPwd);
       setLoginNickname(setPwdNickname);
       setNewPwd("");
@@ -132,13 +134,14 @@ export default function ChampMe() {
         }),
       });
       const d2 = await r2.json();
+
       if (!r2.ok) {
-        // 혹시라도 실패하면 로그인 화면으로
         alert("비밀번호가 설정되었습니다. 이제 로그인해 주세요.");
         setStep("login");
         return;
       }
-      // 자동 로그인 성공 → 내정보 화면
+
+      // 자동 로그인 성공
       setMe(d2.me);
       setScores(d2.scores || []);
       setNick(d2.me.nickname || "");
@@ -161,14 +164,15 @@ export default function ChampMe() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          password,                 // 현재 로그인 비번
+          password,                  // 현재 비번으로 인증
           dept,
-          nickname: nick,
-          handicap: String(handi),  // 서버에서 숫자 변환
-          newPassword: newPwForChange, // 있으면 변경
+          nickname: nick,            // 변경할 값
+          handicap: String(handi),   // 서버에서 숫자 변환
+          newPassword: newPwForChange || undefined, // 있으면 변경
         }),
       });
       const data = await r.json();
+
       if (!r.ok) {
         if (data?.error === "AMBIGUOUS_NAME_NEED_NICKNAME") {
           alert("동명이인이 있어 닉네임 정보가 필요해요. 관리자에게 문의하세요.");
@@ -177,9 +181,12 @@ export default function ChampMe() {
         alert(data?.error || "수정 실패");
         return;
       }
-      alert("저장되었습니다.");
+
+      // 성공
       setMe(data.me);
+      if (newPwForChange) setPassword(newPwForChange); // 클라 상태도 갱신
       setNewPwForChange("");
+      alert("저장되었습니다.");
     } finally {
       setSaving(false);
     }
@@ -203,21 +210,29 @@ export default function ChampMe() {
             />
           </div>
 
-          {/* ⬇️ 동명이인 대응: 닉네임(선택) 입력칸. 서버에서 요구하면 강조 */}
-          <div>
-            <label className="block font-semibold mb-1">
-              닉네임 <span className={`text-xs ${needNickname ? "text-rose-600 font-bold" : "text-gray-400"}`}>
-                (동명이인이면 입력)
-              </span>
-            </label>
-            <input
-              className={`w-full border rounded-lg p-3 ${needNickname ? "border-rose-400" : ""}`}
-              placeholder="예) 지원신이삭"
-              value={loginNickname}
-              onChange={(e) => setLoginNickname(e.target.value)}
-              disabled={working}
-            />
-          </div>
+          {/* 동명이인 대응: 필요할 때만 표시, 안 보일 때는 토글로 열 수 있음 */}
+          {showNickname ? (
+            <div>
+              <label className="block font-semibold mb-1">
+                닉네임 <span className="text-xs text-rose-600 font-bold">(동명이인이면 필수)</span>
+              </label>
+              <input
+                className="w-full border rounded-lg p-3 border-rose-400"
+                placeholder="예) 지원신이삭"
+                value={loginNickname}
+                onChange={(e) => setLoginNickname(e.target.value)}
+                disabled={working}
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowNickname(true)}
+              className="text-sm text-gray-500 underline underline-offset-4"
+            >
+              동명이인인가요? 닉네임 입력하기
+            </button>
+          )}
 
           <div>
             <label className="block font-semibold mb-1">비밀번호</label>
