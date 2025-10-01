@@ -1,132 +1,120 @@
-// pages/api/champ/home.js
-import prisma from "../../../lib/prisma";
+import prisma from '../../../lib/prisma';
 
-const safeParse = (s, fallback) => {
-  try {
-    if (!s || typeof s !== "string") return fallback;
-    const v = JSON.parse(s);
-    return v ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
+function tierMultiplier(tier) {
+  if (tier >= 120) return 1.2;
+  if (tier <= 80)  return 0.8;
+  return 1.0; // 100
+}
 
 export default async function handler(req, res) {
   try {
-    // 1) 시즌 선택: open > 최신 year
-    let season =
-      (await prisma.season.findFirst({ where: { status: "open" } })) ||
-      (await prisma.season.findFirst({ orderBy: { year: "desc" } }));
-    if (!season) {
+    // 공지
+    const notices = await prisma.notice.findMany({
+      orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+      take: 5,
+      select: { id: true, title: true, content: true, pinned: true, createdAt: true },
+    });
+
+    // 현재 이벤트 선택
+    const now = new Date();
+    const upcoming = await prisma.event.findFirst({
+      where: { playedAt: { gte: now } },
+      orderBy: { playedAt: 'asc' },
+      include: { season: true },
+    });
+    const recent = await prisma.event.findFirst({
+      where: { playedAt: { lt: now } },
+      orderBy: { playedAt: 'desc' },
+      include: { season: true },
+    });
+    const fallback = await prisma.event.findFirst({
+      orderBy: { createdAt: 'desc' },
+      include: { season: true },
+    });
+
+    const current = upcoming || recent || fallback;
+    if (!current) {
       return res.status(200).json({
-        season: null,
-        event: null,
-        overview: null,
-        leaderboardEvent: [],
-        leaderboardSeason: [],
-        notices: [],
+        currentEvent: null,
+        eventLeaderboard: [],
+        seasonLeaderboard: [],
+        notices,
       });
     }
 
-    // 2) 현재/진행중 대회 (없을 수 있음)
-    const event =
-      (await prisma.event.findFirst({
-        where: { seasonId: season.id, status: { in: ["open", "published"] } },
-        orderBy: [{ playedAt: "desc" }, { updatedAt: "desc" }],
-      })) || null;
+    // 이벤트 리더보드(예: strokes 오름차순 → 필요 시 points/NET 교체 가능)
+    const eventScores = await prisma.score.findMany({
+      where: { eventId: current.id },
+      include: { participant: true },
+      orderBy: [{ strokes: 'asc' }, { createdAt: 'asc' }],
+      take: 50,
+    });
+    const eventLeaderboard = eventScores.map((s, idx) => ({
+      rank: idx + 1,
+      name: s.participant?.name || '-',
+      nickname: s.participant?.nickname || s.externalNickname,
+      strokes: s.strokes ?? null,
+      points: s.points ?? null,
+    }));
 
-    // 3) 개요/공지 (Setting)
-    const [overviewSetting, noticesSetting] = await Promise.all([
-      prisma.setting.findUnique({ where: { key: "champ:overview" } }),
-      prisma.setting.findUnique({ where: { key: "champ:notices" } }),
-    ]);
+    // 시즌 포인트(보정): 같은 Season 내 모든 이벤트의 Score.points 합 * tier multiplier
+    let seasonLeaderboard = [];
+    if (current.seasonId) {
+      const events = await prisma.event.findMany({
+        where: { seasonId: current.seasonId },
+        select: { id: true, tier: true },
+      });
 
-    const overview =
-      safeParse(overviewSetting?.value, null) ||
-      (event
-        ? {
-            title: `${season.name} · ${event.name}`,
-            schedule: event.playedAt
-              ? new Date(event.playedAt).toLocaleDateString("ko-KR")
-              : "일정 미정",
-            course: "",
-            format: "",
-            prizes: "",
+      const byPid = new Map(); // pid → { name, nickname, total }
+      for (const ev of events) {
+        const mult = tierMultiplier(ev.tier || 100);
+        const rows = await prisma.score.findMany({
+          where: { eventId: ev.id, participantId: { not: null } },
+          include: { participant: true },
+        });
+        for (const r of rows) {
+          const pid = r.participantId;
+          const inc = (r.points || 0) * mult;
+          if (!byPid.has(pid)) {
+            byPid.set(pid, {
+              name: r.participant?.name || '-',
+              nickname: r.participant?.nickname || '',
+              total: 0,
+            });
           }
-        : null);
-
-    const notices = Array.isArray(safeParse(noticesSetting?.value, []))
-      ? safeParse(noticesSetting?.value, [])
-      : [];
-
-    // 4) 대회 리더보드 (현재 이벤트 있을 때만)
-    let leaderboardEvent = [];
-    if (event) {
-      const rows = await prisma.score.findMany({
-        where: { eventId: event.id, strokes: { not: null } },
-        include: { participant: true },
-        orderBy: [{ strokes: "asc" }, { createdAt: "asc" }],
-        take: 10,
-      });
-      leaderboardEvent = rows.map((r, i) => ({
-        rank: i + 1,
-        name: r.participant?.name || "-",
-        nickname: r.participant?.nickname || r.externalNickname || "-",
-        strokes: r.strokes,
-        points: r.points ?? 0,
-      }));
-    }
-
-    // 5) 시즌 포인트 리더보드 (시즌 전체 합산)
-    const seasonPoints = await prisma.score.groupBy({
-      by: ["participantId"],
-      where: {
-        points: { not: null },
-        event: { seasonId: season.id },
-      },
-      _sum: { points: true },
-      orderBy: { _sum: { points: "desc" } },
-      take: 50, // 넉넉히 뽑아서 아래에서 이름 붙임 → 상위 10만 반환
-    });
-
-    // 참가자 정보 붙이기
-    const ids = seasonPoints.map((r) => r.participantId).filter(Boolean);
-    const participants = await prisma.participant.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, name: true, nickname: true },
-    });
-    const pmap = new Map(participants.map((p) => [p.id, p]));
-
-    const leaderboardSeason = seasonPoints
-      .slice(0, 10)
-      .map((r, i) => {
-        const p = pmap.get(r.participantId);
-        return {
+          byPid.get(pid).total += inc;
+        }
+      }
+      seasonLeaderboard = Array.from(byPid.entries())
+        .map(([_, v]) => v)
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 50)
+        .map((v, i) => ({
           rank: i + 1,
-          name: p?.name || "-",
-          nickname: p?.nickname || "-",
-          totalPoints: r._sum.points || 0,
-        };
-      });
+          name: v.name,
+          nickname: v.nickname,
+          points: Math.round(v.total),
+        }));
+    }
 
     return res.status(200).json({
-      season: { id: season.id, name: season.name, year: season.year, slug: season.slug },
-      event: event
-        ? {
-            id: event.id,
-            name: event.name,
-            slug: event.slug,
-            playedAt: event.playedAt,
-            status: event.status,
-          }
-        : null,
-      overview,
-      leaderboardEvent,
-      leaderboardSeason,
+      currentEvent: {
+        id: current.id,
+        name: current.name,
+        season: current.season ? { id: current.season.id, name: current.season.name, year: current.season.year } : null,
+        playedAt: current.playedAt,
+        tier: current.tier,
+        overview: current.overview,
+        rules: current.rules,
+        prizes: current.prizes,
+        status: current.status,
+      },
+      eventLeaderboard,
+      seasonLeaderboard,
       notices,
     });
   } catch (e) {
-    console.error("champ/home api error:", e);
-    return res.status(500).json({ error: "SERVER_ERROR" });
+    console.error('champ home api error:', e);
+    return res.status(500).json({ error: 'SERVER_ERROR' });
   }
 }
