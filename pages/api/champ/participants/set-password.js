@@ -2,27 +2,40 @@
 import prisma from "../../../../lib/prisma";
 import bcrypt from "bcryptjs";
 
+const ERR = {
+  METHOD: "METHOD_NOT_ALLOWED",
+  NEED_NAME_PW: "NAME_AND_PASSWORD_REQUIRED",
+  NOT_FOUND: "PARTICIPANT_NOT_FOUND",
+  AMBIGUOUS: "AMBIGUOUS_NAME_NEED_NICKNAME",
+  ALREADY_SET: "ALREADY_SET",
+  SERVER: "SERVER_ERROR",
+};
+
+const trim = (s) => String(s ?? "").trim();
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
+    return res.status(405).json({ error: ERR.METHOD });
   }
 
   try {
-    const { name, password, nickname } = req.body || {};
+    const name = trim(req.body?.name);
+    const password = trim(req.body?.password);
+    const nickname = trim(req.body?.nickname);
 
-    if (!name || !String(name).trim() || !password || !String(password).trim()) {
-      return res.status(400).json({ error: "NAME_AND_PASSWORD_REQUIRED" });
+    if (!name || !password) {
+      return res.status(400).json({ error: ERR.NEED_NAME_PW });
     }
 
-    // 1) 이름으로 후보 검색 (유니크 아님)
+    // 1) 이름으로 후보 검색 (대소문자 무시)
     const candidates = await prisma.participant.findMany({
-      where: { name: String(name).trim() },
-      select: { id: true, name: true, nickname: true, passhash: true },
+      where: { name: { equals: name, mode: "insensitive" } },
+      select: { id: true, name: true, nickname: true, passwordHash: true },
     });
 
     if (candidates.length === 0) {
-      return res.status(404).json({ error: "PARTICIPANT_NOT_FOUND" });
+      return res.status(404).json({ error: ERR.NOT_FOUND });
     }
 
     // 2) 동명이인 처리
@@ -30,34 +43,32 @@ export default async function handler(req, res) {
     if (candidates.length === 1) {
       target = candidates[0];
     } else {
-      // 닉네임이 주어지면 그걸로 좁히기
-      if (!nickname || !String(nickname).trim()) {
-        return res.status(409).json({ error: "AMBIGUOUS_NAME_NEED_NICKNAME" });
+      // 닉네임 필수
+      if (!nickname) {
+        return res.status(409).json({ error: ERR.AMBIGUOUS });
       }
       const hit = candidates.find(
-        (p) => (p.nickname || "").toLowerCase() === String(nickname).trim().toLowerCase()
+        (p) => trim(p.nickname).toLowerCase() === nickname.toLowerCase()
       );
-      if (!hit) {
-        return res.status(404).json({ error: "PARTICIPANT_NOT_FOUND" });
-      }
+      if (!hit) return res.status(404).json({ error: ERR.NOT_FOUND });
       target = hit;
     }
 
-    // 3) 이미 비번 설정돼 있으면 막기
-    if (target.passhash && String(target.passhash).trim() !== "") {
-      return res.status(409).json({ error: "ALREADY_SET" });
+    // 3) 이미 비밀번호가 있으면 막기
+    if (trim(target.passwordHash)) {
+      return res.status(409).json({ error: ERR.ALREADY_SET });
     }
 
-    // 4) 해시 생성 후 id로 업데이트 (중요: id는 유니크)
-    const passhash = await bcrypt.hash(String(password).trim(), 10);
+    // 4) 해시 생성 후 업데이트 (id는 유니크)
+    const passwordHash = await bcrypt.hash(password, 10);
     await prisma.participant.update({
       where: { id: target.id },
-      data: { passhash },
+      data: { passwordHash },
     });
 
     return res.status(200).json({ ok: true });
   } catch (e) {
     console.error("set-password error:", e);
-    return res.status(500).json({ error: "SERVER_ERROR" });
+    return res.status(500).json({ error: ERR.SERVER });
   }
 }
