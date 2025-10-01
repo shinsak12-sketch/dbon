@@ -1,11 +1,45 @@
+// pages/admin/index.js
 import { useEffect, useState } from "react";
 import Uploader from "../../components/Uploader";
 import Link from "next/link";
 
 const ADMIN_PASS = "dbsonsa";
 
+// 주관부서 옵션
+const ORG_DEPTS = [
+  "강북부","강남부","동서울부","인천부","경기부","외제부","수도SMART부",
+  "부산부","경남부","대구부","충청부","호남부","지방SMART부",
+  "수도본부","지방본부","경영지원본부","손사지원","손사전략","네트워크","감사파트",
+  "본점","센터장","부서장","본부장","대표이사","DB손사"
+];
+
+// 품격(티어) · 상태 · 방식 · 스코어보정 옵션
+const TIER_OPTIONS = [
+  { value: 120, label: "메이저 (120)" },
+  { value: 100, label: "스탠다드 (100)" },
+  { value: 80,  label: "라이트 (80)" },
+];
+
+const OPEN_STATUS_OPTIONS = [
+  { value: "overview", label: "개요" },
+  { value: "open",     label: "오픈" },
+  { value: "paused",   label: "중지" },
+  { value: "closed",   label: "종료" },
+  { value: "result",   label: "결과" },
+];
+
+const GAME_TYPE_OPTIONS = [
+  { value: "stroke",  label: "스트로크" },
+  { value: "foursome",label: "포썸" },
+];
+
+const ADJUST_OPTIONS = [
+  { value: "on",  label: "적용" },
+  { value: "off", label: "미적용" },
+];
+
 export default function Admin() {
-  // 로그인
+  // ───────────────── 로그인
   const [pwd, setPwd] = useState("");
   const [authed, setAuthed] = useState(false);
   function tryLogin(e) {
@@ -14,7 +48,7 @@ export default function Admin() {
     else alert("비밀번호가 틀렸습니다.");
   }
 
-  // 배경 이미지
+  // ───────────────── 랜딩 배경
   const [bgUrl, setBgUrl] = useState("");
   const [savingBg, setSavingBg] = useState(false);
   useEffect(() => {
@@ -42,44 +76,73 @@ export default function Admin() {
     }
   }
 
-  // ====== 챔피언십: 대회 개요 ======
+  // ───────────────── 챔피언십: 이번 대회 개요 (요청한 9개 필드)
   const [events, setEvents] = useState([]);
-  const [evForm, setEvForm] = useState({
-    id: null, seasonId: "", name: "", slug: "",
-    playedAt: "", status: "open", tier: 100,
-    overview: "", rules: "", prizes: ""
-  });
+
+  // 폼 상태
+  const emptyEvForm = {
+    id: null,
+    orgDept: "",          // 1) 주관부서 (드롭다운)
+    eventName: "",        // 2) 대회명
+    managerName: "",      // 3) 부서담당자
+    startAt: "",          // 4) 기간-시작
+    endAt: "",            // 4) 기간-종료
+    tier: 100,            // 5) 대회품격(120/100/80)
+    openStatus: "overview", // 6) 오픈여부
+    gameType: "stroke",   // 7) 대회방식
+    scoreAdjust: "on",    // 8) 스코어보정
+    overview: "",         // 9) 대회개요(서술)
+  };
+  const [evForm, setEvForm] = useState(emptyEvForm);
+
   async function loadEvents() {
+    // 목록은 서버 스키마에 맞게 응답해준다고 가정(새 필드 이름들)
     const r = await fetch("/api/champ/admin/events");
     const data = await r.json();
-    setEvents(data.items || []);
+    setEvents(Array.isArray(data.items) ? data.items : []);
   }
   useEffect(() => { loadEvents(); }, []);
+
+  // 저장
   async function saveEvent() {
+    // 간단 검증
+    if (!evForm.orgDept) return alert("주관부서를 선택하세요.");
+    if (!evForm.eventName.trim()) return alert("대회명을 입력하세요.");
+    if (!evForm.managerName.trim()) return alert("부서담당자를 입력하세요.");
+    if (!evForm.startAt || !evForm.endAt) return alert("대회기간(시작/종료)을 입력하세요.");
+
     const payload = { ...evForm, admin: ADMIN_PASS };
-    const url = "/api/champ/admin/events";
     const method = evForm.id ? "PUT" : "POST";
-    const r = await fetch(url, {
-      method, headers: { "Content-Type": "application/json" },
+    const r = await fetch("/api/champ/admin/events", {
+      method,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     const data = await r.json();
     if (!r.ok) return alert(data?.error || "저장 실패");
     alert("저장되었습니다.");
-    setEvForm({ id: null, seasonId: "", name: "", slug: "", playedAt: "", status: "open", tier: 100, overview: "", rules: "", prizes: "" });
+    setEvForm(emptyEvForm);
     loadEvents();
   }
+
+  // 편집
   function editEvent(e) {
     setEvForm({
-      id: e.id, seasonId: e.season?.id || "",
-      name: e.name, slug: e.slug,
-      playedAt: e.playedAt ? new Date(e.playedAt).toISOString().slice(0,16) : "",
-      status: e.status, tier: e.tier,
-      overview: e.overview || "", rules: e.rules || "", prizes: e.prizes || ""
+      id: e.id ?? null,
+      orgDept: e.orgDept || "",
+      eventName: e.eventName || "",
+      managerName: e.managerName || "",
+      startAt: e.startAt ? new Date(e.startAt).toISOString().slice(0,16) : "",
+      endAt:   e.endAt   ? new Date(e.endAt).toISOString().slice(0,16)   : "",
+      tier: e.tier ?? 100,
+      openStatus: e.openStatus || "overview",
+      gameType: e.gameType || "stroke",
+      scoreAdjust: e.scoreAdjust || "on",
+      overview: e.overview || "",
     });
   }
 
-  // ====== 공지사항 ======
+  // ───────────────── 공지사항
   const [notices, setNotices] = useState([]);
   const [ntForm, setNtForm] = useState({ id: null, title: "", content: "", pinned: false });
   async function loadNotices() {
@@ -115,7 +178,7 @@ export default function Admin() {
     setNtForm({ id: n.id, title: n.title, content: n.content, pinned: !!n.pinned });
   }
 
-  // ====== 포인트 규칙 ======
+  // ───────────────── 포인트 규칙(기존)
   const [pointRules, setPointRules] = useState({ base: [30,20,15,12,10,8,6,4,2,1], tier: {120:120,100:100,80:80} });
   async function loadRules() {
     const r = await fetch("/api/champ/admin/settings");
@@ -133,7 +196,7 @@ export default function Admin() {
     alert("저장되었습니다.");
   }
 
-  // ====== 선수 관리(기존) ======
+  // ───────────────── 선수 관리(기존)
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState([]);
@@ -172,6 +235,7 @@ export default function Admin() {
     search();
   }
 
+  // ───────────────── UI
   if (!authed) {
     return (
       <main className="max-w-md mx-auto p-6">
@@ -198,46 +262,142 @@ export default function Admin() {
         <Uploader label={savingBg ? "업로드 중…" : "이미지 업로드"} onUploaded={onUploaded} disabled={savingBg} />
       </section>
 
-      {/* ② 대회 개요 */}
+      {/* ② 이번 대회 개요 (요청 9개 필드) */}
       <section className="rounded-2xl border p-5 space-y-4 bg-white">
         <h2 className="text-xl font-bold">② 이번 대회 개요</h2>
 
         <div className="grid sm:grid-cols-2 gap-3">
-          <input className="border rounded-lg p-3" placeholder="시즌 ID" value={evForm.seasonId} onChange={e=>setEvForm(v=>({...v, seasonId:e.target.value}))}/>
-          <input className="border rounded-lg p-3" placeholder="대회명 (예: 1월 강북부 오픈)" value={evForm.name} onChange={e=>setEvForm(v=>({...v, name:e.target.value}))}/>
-          <input className="border rounded-lg p-3" placeholder="슬러그 (예: 2025-r1)" value={evForm.slug} onChange={e=>setEvForm(v=>({...v, slug:e.target.value}))}/>
-          <input type="datetime-local" className="border rounded-lg p-3" value={evForm.playedAt} onChange={e=>setEvForm(v=>({...v, playedAt:e.target.value}))}/>
-          <select className="border rounded-lg p-3" value={evForm.status} onChange={e=>setEvForm(v=>({...v, status:e.target.value}))}>
-            <option value="draft">draft</option><option value="open">open</option><option value="closed">closed</option><option value="published">published</option>
+          {/* 1. 주관부서 */}
+          <select
+            className="border rounded-lg p-3"
+            value={evForm.orgDept}
+            onChange={(e)=>setEvForm(v=>({...v, orgDept:e.target.value}))}
+          >
+            <option value="">주관부서 선택</option>
+            {ORG_DEPTS.map((d)=>(
+              <option key={d} value={d}>{d}</option>
+            ))}
           </select>
-          <select className="border rounded-lg p-3" value={evForm.tier} onChange={e=>setEvForm(v=>({...v, tier:Number(e.target.value)}))}>
-            <option value={120}>메이저(120)</option>
-            <option value={100}>스탠다드(100)</option>
-            <option value={80}>라이트(80)</option>
+
+          {/* 2. 대회명 */}
+          <input
+            className="border rounded-lg p-3"
+            placeholder="대회명"
+            value={evForm.eventName}
+            onChange={(e)=>setEvForm(v=>({...v, eventName:e.target.value}))}
+          />
+
+          {/* 3. 부서담당자 */}
+          <input
+            className="border rounded-lg p-3"
+            placeholder="부서담당자"
+            value={evForm.managerName}
+            onChange={(e)=>setEvForm(v=>({...v, managerName:e.target.value}))}
+          />
+
+          {/* 4. 대회기간 */}
+          <input
+            type="datetime-local"
+            className="border rounded-lg p-3"
+            value={evForm.startAt}
+            onChange={(e)=>setEvForm(v=>({...v, startAt:e.target.value}))}
+          />
+          <input
+            type="datetime-local"
+            className="border rounded-lg p-3"
+            value={evForm.endAt}
+            onChange={(e)=>setEvForm(v=>({...v, endAt:e.target.value}))}
+          />
+
+          {/* 5. 대회품격 */}
+          <select
+            className="border rounded-lg p-3"
+            value={evForm.tier}
+            onChange={(e)=>setEvForm(v=>({...v, tier:Number(e.target.value)}))}
+          >
+            {TIER_OPTIONS.map(t=>(
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+
+          {/* 6. 오픈여부 */}
+          <select
+            className="border rounded-lg p-3"
+            value={evForm.openStatus}
+            onChange={(e)=>setEvForm(v=>({...v, openStatus:e.target.value}))}
+          >
+            {OPEN_STATUS_OPTIONS.map(o=>(
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          {/* 7. 대회방식 */}
+          <select
+            className="border rounded-lg p-3"
+            value={evForm.gameType}
+            onChange={(e)=>setEvForm(v=>({...v, gameType:e.target.value}))}
+          >
+            {GAME_TYPE_OPTIONS.map(o=>(
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          {/* 8. 스코어보정 */}
+          <select
+            className="border rounded-lg p-3"
+            value={evForm.scoreAdjust}
+            onChange={(e)=>setEvForm(v=>({...v, scoreAdjust:e.target.value}))}
+          >
+            {ADJUST_OPTIONS.map(o=>(
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
           </select>
         </div>
 
-        <textarea className="w-full border rounded-lg p-3" rows={3} placeholder="개요" value={evForm.overview} onChange={e=>setEvForm(v=>({...v, overview:e.target.value}))}/>
-        <textarea className="w-full border rounded-lg p-3" rows={3} placeholder="경기방식" value={evForm.rules} onChange={e=>setEvForm(v=>({...v, rules:e.target.value}))}/>
-        <textarea className="w-full border rounded-lg p-3" rows={3} placeholder="상품" value={evForm.prizes} onChange={e=>setEvForm(v=>({...v, prizes:e.target.value}))}/>
+        {/* 9. 대회개요(서술) */}
+        <textarea
+          className="w-full border rounded-lg p-3"
+          rows={4}
+          placeholder="대회개요"
+          value={evForm.overview}
+          onChange={(e)=>setEvForm(v=>({...v, overview:e.target.value}))}
+        />
 
         <div className="flex gap-2">
           <button onClick={saveEvent} className="btn-primary">저장</button>
-          {evForm.id && <button onClick={()=>setEvForm({ id:null, seasonId:"", name:"", slug:"", playedAt:"", status:"open", tier:100, overview:"", rules:"", prizes:""})} className="btn-outline">새로작성</button>}
+          {evForm.id && (
+            <button
+              onClick={()=>setEvForm(emptyEvForm)}
+              className="btn-outline"
+            >
+              새로작성
+            </button>
+          )}
         </div>
 
+        {/* 목록 */}
         <div className="border rounded-xl divide-y">
-          {events.map(e=>(
+          {events.map((e)=>(
             <div key={e.id} className="p-3 flex items-center justify-between">
               <div className="min-w-0">
-                <div className="font-semibold">{e.name} <span className="text-xs text-gray-500">/{e.slug}</span></div>
+                <div className="font-semibold">
+                  {e.eventName}
+                  <span className="ml-2 text-xs text-gray-500">/ {e.orgDept}</span>
+                </div>
                 <div className="text-sm text-gray-500">
-                  {e.season?.name ?? '-'} · {e.playedAt ? new Date(e.playedAt).toLocaleString() : '일자 미정'} · 티어 {e.tier}
+                  {e.startAt ? new Date(e.startAt).toLocaleString() : "시작 미정"} ~ {e.endAt ? new Date(e.endAt).toLocaleString() : "종료 미정"}
+                  {" · "}품격 {e.tier}
+                  {" · "}{OPEN_STATUS_OPTIONS.find(x=>x.value===e.openStatus)?.label ?? e.openStatus}
+                  {" · "}{GAME_TYPE_OPTIONS.find(x=>x.value===e.gameType)?.label ?? e.gameType}
+                  {" · "}{e.scoreAdjust==="on"?"보정 적용":"보정 미적용"}
                 </div>
               </div>
               <button onClick={()=>editEvent(e)} className="btn-outline">편집</button>
             </div>
           ))}
+          {events.length===0 && (
+            <div className="p-3 text-sm text-gray-500">등록된 대회가 없습니다.</div>
+          )}
         </div>
       </section>
 
@@ -269,6 +429,7 @@ export default function Admin() {
               </div>
             </div>
           ))}
+          {notices.length===0 && <div className="p-3 text-sm text-gray-500">공지 없음</div>}
         </div>
       </section>
 
@@ -297,7 +458,7 @@ export default function Admin() {
         <button onClick={saveRules} className="btn-primary">저장</button>
       </section>
 
-      {/* ⑤ 선수 관리 (검색/비번초기화/삭제) */}
+      {/* ⑤ 선수 관리 */}
       <section className="rounded-2xl border p-5 space-y-4 bg-white">
         <h2 className="text-xl font-bold">⑤ 선수 관리</h2>
         <div className="flex gap-2">
@@ -324,4 +485,4 @@ export default function Admin() {
       </section>
     </main>
   );
-      }
+}
