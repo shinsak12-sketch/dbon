@@ -7,9 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-//
-// ======================= Legacy: 맛집 도메인 =======================
-//
+/* ========== Legacy: 맛집 도메인 ========== */
 
 model Region {
   id     Int     @id @default(autoincrement())
@@ -33,9 +31,7 @@ model Place {
   address       String?
   mapUrl        String?
 
-  // 레거시 단일
   coverImage    String?
-  // 다중 이미지
   coverImages   String[]  @default([])
 
   description   String?   @db.Text
@@ -55,19 +51,15 @@ model Review {
   content   String
   author    String?
 
-  // 레거시 단일
   imageUrl   String?
-  // 다중 이미지
   imageUrls  String[] @default([])
 
-  pin       String?   // 간단 보호용 PIN
+  pin       String?
 
   createdAt DateTime  @default(now())
 }
 
-//
-// ======================= 시스템 세팅 (공용 KV) =======================
-//
+/* ========== 공용 KV 세팅 ========== */
 
 model Setting {
   key       String   @id
@@ -75,11 +67,8 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
-//
-// ======================= DBON Championship 도메인 =======================
-//
+/* ========== DBON Championship ========== */
 
-// ── 시즌
 model Season {
   id        Int       @id @default(autoincrement())
   name      String
@@ -98,38 +87,37 @@ model Season {
   @@index([year])
 }
 
-// ── 대회
 model Event {
-  id          Int           @id @default(autoincrement())
+  id          Int            @id @default(autoincrement())
   seasonId    Int
-  name        String                           // UI: 대회명
-  slug        String         @unique           // 예: "2025-r1"
+  name        String
+  slug        String         @unique
 
-  // UI 요구 필드
-  roundNo     String?                           // 몇회 (예: "제1회")
-  organizer   String?                           // 주관부서
-  manager     String?                           // 부서담당자
-  beginAt     DateTime?                         // 시작일시
-  endAt       DateTime?                         // 종료일시
-  classType   EventClassType @default(OPEN)     // 오픈/클래식/…/플레이오프
-  state       EventState     @default(OVERVIEW) // 개요/오픈/중지/종료/결과
-  mode        EventMode      @default(STROKE)   // 스트로크/포썸
-  adjust      ScoreAdjust    @default(NONE)     // 스코어보정 적용/미적용
-  tier        Int            @default(100)      // 120 / 100 / 80
+  // UI 추가 필드
+  roundNo     String?                          // 몇회 (예: "제1회")
+  organizer   String?                          // 주관부서
+  manager     String?                          // 부서담당자
+  beginAt     DateTime?                        // 시작
+  endAt       DateTime?                        // 종료
+  classType   EventClassType @default(OPEN)
+  state       EventState     @default(OVERVIEW)
+  mode        EventMode      @default(STROKE)
+  adjust      ScoreAdjust    @default(NONE)
+  tier        Int            @default(100)
 
-  // 레거시 호환 (단일일자)
+  // 레거시 호환
   playedAt    DateTime?
 
-  // 홈/개요용
-  overview    String?       @db.Text           // 대회 소개
-  rules       String?       @db.Text           // 경기 방식 상세
-  prizes      String?       @db.Text           // 상품/시상
+  // 홈/개요
+  overview    String?        @db.Text
+  rules       String?        @db.Text
+  prizes      String?        @db.Text
 
-  season      Season        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  season      Season         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   scores      Score[]
 
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@index([seasonId])
   @@index([beginAt])
@@ -138,26 +126,24 @@ model Event {
   @@index([state])
 }
 
-// ── 공지
 model Notice {
   id        Int      @id @default(autoincrement())
   title     String
   content   String   @db.Text
-  pinned    Boolean  @default(false)       // 상단 고정
+  pinned    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([pinned, createdAt])
 }
 
-// ── 참가자
 model Participant {
   id           Int       @id @default(autoincrement())
-  name         String                 // 실명
-  dept         String?                // 소속
-  nickname     String                 // 골프존 닉네임(매칭 키)
-  handicap     Float?                 // 기본 핸디
-  passwordHash String?                // 로그인 보호용
+  name         String
+  dept         String?
+  nickname     String
+  handicap     Float?
+  passwordHash String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -168,12 +154,11 @@ model Participant {
   @@index([name])
 }
 
-// ── 시즌 등록
 model Registration {
   id            Int        @id @default(autoincrement())
   seasonId      Int
   participantId Int
-  handicap      Float?     // 시즌별 핸디 오버라이드
+  handicap      Float?
 
   season        Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
@@ -185,12 +170,11 @@ model Registration {
   @@index([participantId])
 }
 
-// ── 스코어/포인트
 model Score {
   id               Int          @id @default(autoincrement())
   eventId          Int
-  externalNickname String       // 업로드 원본 닉네임
-  participantId    Int?         // 매칭되면 채움
+  externalNickname String
+  participantId    Int?
   strokes          Int?
   net              Float?
   points           Int?
@@ -212,59 +196,32 @@ model Score {
   @@index([points])
 }
 
-//
-// ====== Optional: 조인게시판(향후 필요 시 주석 해제) ======
-//
-// 아래 블록은 지금은 비활성화되어 있습니다.
-/*
-model JoinPost {
-  id          Int      @id @default(autoincrement())
-  title       String
-  content     String   @db.Text
-  field       String?  // 코스/필드명
-  playAt      DateTime?
-  maxSlots    Int?     // 정원
-  takenSlots  Int?     @default(0)
-  contact     String?  // 연락 방법
-  authorName  String?
-  isClosed    Boolean  @default(false)
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([playAt, isClosed])
-}
-*/
-
-//
-// ======================= Enums =======================
-//  - DB에는 영문 enum을 저장하고, UI에서 한글로 매핑해 표시
-//
+/* ========== Enums ========== */
 
 enum EventClassType {
-  OPEN         // 오픈
-  CLASSIC      // 클래식
-  INVITATIONAL // 인비테이셔널
-  CHAMPIONSHIP // 챔피언십
-  MASTERS      // 마스터스
-  CHALLENGE    // 챌린지
-  PLAYOFF      // 플레이오프
+  OPEN
+  CLASSIC
+  INVITATIONAL
+  CHAMPIONSHIP
+  MASTERS
+  CHALLENGE
+  PLAYOFF
 }
 
 enum EventState {
-  OVERVIEW // 개요 (휴지기/사전안내)
-  OPEN     // 오픈 (접수/예정)
-  HOLD     // 중지
-  FINISH   // 종료 (라운드 종료)
-  RESULT   // 결과 (최종 확정)
+  OVERVIEW
+  OPEN
+  HOLD
+  FINISH
+  RESULT
 }
 
 enum EventMode {
-  STROKE   // 스트로크
-  FOURSOME // 포썸
+  STROKE
+  FOURSOME
 }
 
 enum ScoreAdjust {
-  NONE   // 스코어보정 미적용
-  APPLY  // 스코어보정 적용
+  NONE
+  APPLY
 }
