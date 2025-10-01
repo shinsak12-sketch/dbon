@@ -1,4 +1,4 @@
-import prisma from '../../../../../lib/prisma';
+import prisma from '../../../../lib/prisma';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'dbsonsa';
 
 export default async function handler(req, res) {
