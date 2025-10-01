@@ -233,7 +233,6 @@ model JoinPost {
 
   @@index([playAt, isClosed])
 }
-*/
 
 //
 // ===== Enums =====
