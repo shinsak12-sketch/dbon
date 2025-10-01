@@ -5,50 +5,66 @@ import bcrypt from "bcryptjs";
 const ERR = {
   NEED_NAME_PW: "NAME_AND_PASSWORD_REQUIRED",
   NOT_FOUND: "PARTICIPANT_NOT_FOUND",
-  NEED_NICK: "AMBIGUOUS_NAME_NEED_NICKNAME", // ✅ 프론트와 합치기
+  NEED_NICK: "AMBIGUOUS_NAME_NEED_NICKNAME",
   NO_PW: "NO_PASSWORD_SET",
   WRONG_PW: "WRONG_PASSWORD",
   METHOD: "METHOD_NOT_ALLOWED",
   SERVER: "SERVER_ERROR",
 };
 
+const trim = (s) => String(s ?? "").trim();
+
 export default async function handler(req, res) {
   if (req.method === "POST") {
     // 로그인
     try {
-      const { name, password, nickname } = req.body || {};
+      const name = trim(req.body?.name);
+      const password = String(req.body?.password ?? "");
+      const nickname = trim(req.body?.nickname);
+
       if (!name || !password) {
         return res.status(400).json({ error: ERR.NEED_NAME_PW });
       }
 
-      const people = await prisma.participant.findMany({
-        where: { name: String(name).trim() },
-      });
+      const nameCond = { equals: name, mode: "insensitive" };
 
-      if (people.length === 0) {
-        return res.status(404).json({ error: ERR.NOT_FOUND });
-      }
-
-      let p = people[0];
-      if (people.length > 1) {
-        if (!nickname) {
-          return res.status(400).json({ error: ERR.NEED_NICK }); // ✅ 통일
-        }
-        p = people.find(
-          (x) => (x.nickname || "").trim() === String(nickname).trim()
-        );
+      // 닉네임이 오면: 이름+닉 단일 조회 → 더 정확하고 효율적
+      let p;
+      if (nickname) {
+        p = await prisma.participant.findFirst({
+          where: {
+            name: nameCond,
+            nickname: { equals: nickname, mode: "insensitive" },
+          },
+        });
         if (!p) return res.status(404).json({ error: ERR.NOT_FOUND });
+      } else {
+        // 닉이 없으면: 이름으로 목록 조회 → 동명이인이면 닉 요구
+        const people = await prisma.participant.findMany({
+          where: { name: nameCond },
+        });
+        if (people.length === 0)
+          return res.status(404).json({ error: ERR.NOT_FOUND });
+        if (people.length > 1)
+          return res.status(400).json({ error: ERR.NEED_NICK });
+        p = people[0];
       }
 
-      if (!p.passhash) return res.status(400).json({ error: ERR.NO_PW });
+      if (!p.passhash) {
+        return res.status(400).json({ error: ERR.NO_PW });
+      }
 
-      const ok = await bcrypt.compare(String(password), p.passhash);
+      const ok = await bcrypt.compare(password, p.passhash);
       if (!ok) return res.status(401).json({ error: ERR.WRONG_PW });
 
+      // 기록 로드: 경기일 내림차순(없으면 createdAt)
       const scores = await prisma.score.findMany({
         where: { participantId: p.id },
         include: { event: { include: { season: true } } },
-        orderBy: [{ createdAt: "desc" }],
+        orderBy: [
+          { event: { playedAt: "desc" } },
+          { createdAt: "desc" },
+        ],
       });
 
       return res.status(200).json({
@@ -69,58 +85,58 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "PUT") {
-    // 내정보 수정(닉/소속/핸디, 새 비번)
+    // 내정보 수정(닉/소속/핸디, 비번변경)
     try {
-      const {
-        name,
-        password,
-        matchNickname, // ✅ 동명이인 매칭용 "현재 닉네임"
-        nickname,      // ✅ 바꿀 "새 닉네임"
-        dept,
-        handicap,
-        newPassword,
-      } = req.body || {};
+      const name = trim(req.body?.name);
+      const password = String(req.body?.password ?? "");
+      const matchNickname = trim(req.body?.matchNickname); // 동명이인 매칭용(현재 닉)
+      const newNickname = req.body?.nickname; // 바꿀 닉
+      const dept = req.body?.dept;
+      const handicap = req.body?.handicap;
+      const newPassword = req.body?.newPassword;
 
       if (!name || !password) {
         return res.status(400).json({ error: ERR.NEED_NAME_PW });
       }
 
-      const people = await prisma.participant.findMany({
-        where: { name: String(name).trim() },
-      });
-      if (people.length === 0) {
-        return res.status(404).json({ error: ERR.NOT_FOUND });
-      }
+      const nameCond = { equals: name, mode: "insensitive" };
 
-      let p = people[0];
-      if (people.length > 1) {
-        // ✅ 동명이인이면 매칭용 닉 필요
-        if (!matchNickname) {
-          return res.status(400).json({ error: ERR.NEED_NICK });
-        }
-        p = people.find(
-          (x) => (x.nickname || "").trim() === String(matchNickname).trim()
-        );
+      // 동명이인이면 matchNickname으로 단일 조회
+      let p;
+      if (matchNickname) {
+        p = await prisma.participant.findFirst({
+          where: {
+            name: nameCond,
+            nickname: { equals: trim(matchNickname), mode: "insensitive" },
+          },
+        });
         if (!p) return res.status(404).json({ error: ERR.NOT_FOUND });
+      } else {
+        const people = await prisma.participant.findMany({
+          where: { name: nameCond },
+        });
+        if (people.length === 0)
+          return res.status(404).json({ error: ERR.NOT_FOUND });
+        if (people.length > 1)
+          return res.status(400).json({ error: ERR.NEED_NICK });
+        p = people[0];
       }
 
       if (!p.passhash) return res.status(400).json({ error: ERR.NO_PW });
 
-      const ok = await bcrypt.compare(String(password), p.passhash);
+      const ok = await bcrypt.compare(password, p.passhash);
       if (!ok) return res.status(401).json({ error: ERR.WRONG_PW });
 
-      const data = {
-        // 값이 주어졌을 때만 업데이트
-        ...(typeof dept === "string" ? { dept } : {}),
-        ...(typeof nickname === "string" ? { nickname } : {}),
-      };
+      const data = {};
+      if (typeof dept === "string") data.dept = dept;
+      if (typeof newNickname === "string") data.nickname = newNickname;
 
-      if (handicap !== undefined && String(handicap).trim() !== "") {
+      if (handicap !== undefined && trim(handicap) !== "") {
         const h = Number(handicap);
         if (!Number.isNaN(h)) data.handicap = h;
       }
 
-      if (newPassword && String(newPassword).trim() !== "") {
+      if (newPassword && trim(newPassword) !== "") {
         data.passhash = await bcrypt.hash(String(newPassword), 10);
       }
 
