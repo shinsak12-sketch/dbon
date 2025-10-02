@@ -7,8 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* ---------- Legacy: Places ---------- */
-
 model Region {
   id     Int     @id @default(autoincrement())
   name   String
@@ -49,15 +47,11 @@ model Review {
   createdAt DateTime  @default(now())
 }
 
-/* ---------- Settings (KV) ---------- */
-
 model Setting {
   key       String   @id
   value     String?
   updatedAt DateTime @updatedAt
 }
-
-/* ---------- DBON Championship ---------- */
 
 model Season {
   id        Int       @id @default(autoincrement())
@@ -71,7 +65,6 @@ model Season {
   regs      Registration[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-
   @@index([year])
 }
 
@@ -94,13 +87,10 @@ model Event {
   overview    String?        @db.Text
   rules       String?        @db.Text
   prizes      String?        @db.Text
-
   season      Season         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   scores      Score[]
-
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
-
   @@index([seasonId])
   @@index([beginAt])
   @@index([endAt])
@@ -115,7 +105,6 @@ model Notice {
   pinned    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   @@index([pinned, createdAt])
 }
 
@@ -130,7 +119,6 @@ model Participant {
   updatedAt    DateTime  @updatedAt
   scores       Score[]
   regs         Registration[]
-
   @@unique([nickname])
   @@index([name])
 }
@@ -143,7 +131,6 @@ model Registration {
   season        Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now())
-
   @@unique([seasonId, participantId])
   @@index([seasonId])
   @@index([participantId])
@@ -165,15 +152,12 @@ model Score {
   event            Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
   participant      Participant? @relation(fields: [participantId], references: [id])
   createdAt        DateTime     @default(now())
-
   @@unique([eventId, externalNickname])
   @@unique([eventId, participantId])
   @@index([eventId])
   @@index([participantId])
   @@index([points])
 }
-
-/* ---------- Enums ---------- */
 
 enum EventClassType {
   OPEN
