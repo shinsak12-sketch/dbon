@@ -1,64 +1,107 @@
 // pages/api/champ/home.js
 import prisma from "../../../lib/prisma";
 
+/** KV(JSON) 불러오기/저장하기 유틸 */
+async function loadKV(key, fallback) {
+  const s = await prisma.setting.findUnique({ where: { key } });
+  if (!s?.value) return fallback;
+  try { return JSON.parse(s.value); } catch { return fallback; }
+}
+
+function fmt(dt) {
+  try {
+    const d = new Date(dt);
+    if (Number.isNaN(d.getTime())) return null;
+    return `${d.toLocaleString("ko-KR")}`;
+  } catch { return null; }
+}
+
 function tierMultiplier(tier) {
   if (tier >= 120) return 1.2;
-  if (tier <= 80) return 0.8;
-  return 1.0; // 기본 100
+  if (tier <= 80)  return 0.8;
+  return 1.0; // 100
 }
 
 export default async function handler(req, res) {
   try {
-    // ① 공지사항 (최근 + 고정)
+    // ① 공지사항
     const notices = await prisma.notice.findMany({
       orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
       take: 5,
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        pinned: true,
-        createdAt: true,
-      },
+      select: { id: true, title: true, createdAt: true, pinned: true, content: true },
     });
 
-    // ② 현재 이벤트 선택
-    const now = new Date();
-    const upcoming = await prisma.event.findFirst({
-      where: { playedAt: { gte: now } },
-      orderBy: { playedAt: "asc" },
-      include: { season: true },
-    });
-    const recent = await prisma.event.findFirst({
-      where: { playedAt: { lt: now } },
-      orderBy: { playedAt: "desc" },
-      include: { season: true },
-    });
-    const fallback = await prisma.event.findFirst({
-      orderBy: { createdAt: "desc" },
-      include: { season: true },
-    });
+    // ② 관리자(KV) 방식 이벤트 우선 사용
+    const kvEvents = (await loadKV("champ:events", [])) || [];
+    const nowMs = Date.now();
 
-    const current = upcoming || recent || fallback;
+    // beginAt 기준으로 "다가오는 → 최근" 우선 선택
+    const upcoming = kvEvents
+      .filter(e => e.beginAt && Date.parse(e.beginAt) >= nowMs)
+      .sort((a,b)=> Date.parse(a.beginAt) - Date.parse(b.beginAt))[0];
+    const recent   = kvEvents
+      .filter(e => e.beginAt && Date.parse(e.beginAt) < nowMs)
+      .sort((a,b)=> Date.parse(b.beginAt) - Date.parse(a.beginAt))[0];
+    const kvCurrent = upcoming || recent || kvEvents[0] || null;
 
-    if (!current) {
+    // ③ KV가 있으면 그것으로 응답 구성(리더보드는 추후 점수연동 시 채움)
+    if (kvCurrent) {
+      const schedule =
+        kvCurrent.beginAt && kvCurrent.endAt
+          ? `${fmt(kvCurrent.beginAt)} ~ ${fmt(kvCurrent.endAt)}`
+          : (kvCurrent.beginAt ? fmt(kvCurrent.beginAt) : "일정 미정");
+
       return res.status(200).json({
-        currentEvent: null,
-        eventLeaderboard: [],
-        seasonLeaderboard: [],
+        overview: {
+          title: kvCurrent.title || "",
+          schedule,
+          course: kvCurrent.org || "",                        // 임시: 주관부서 표시
+          format: `${kvCurrent.mode || "스트로크"} · 티어 ${kvCurrent.tier ?? 100}`,
+          prizes: kvCurrent.overview || "",
+        },
+        event: { id: kvCurrent.id, title: kvCurrent.title || "" },
+        leaderboardEvent: [],     // 점수 DB 연동 전이므로 비움
+        leaderboardSeason: [],    // 점수 DB 연동 전이므로 비움
         notices,
       });
     }
 
-    // ③ 이벤트 리더보드 (strokes 오름차순)
+    // ④ KV가 없다면 (구) Event 테이블 기반으로 동작 (호환)
+    const now = new Date();
+    const dbUpcoming = await prisma.event.findFirst({
+      where: { playedAt: { gte: now } },
+      orderBy: { playedAt: "asc" },
+      include: { season: true },
+    });
+    const dbRecent = await prisma.event.findFirst({
+      where: { playedAt: { lt: now } },
+      orderBy: { playedAt: "desc" },
+      include: { season: true },
+    });
+    const dbFallback = await prisma.event.findFirst({
+      orderBy: { createdAt: "desc" },
+      include: { season: true },
+    });
+    const current = dbUpcoming || dbRecent || dbFallback;
+
+    if (!current) {
+      return res.status(200).json({
+        overview: null,
+        event: null,
+        leaderboardEvent: [],
+        leaderboardSeason: [],
+        notices,
+      });
+    }
+
+    // 이벤트 리더보드 (예: strokes 오름차순)
     const eventScores = await prisma.score.findMany({
       where: { eventId: current.id },
       include: { participant: true },
       orderBy: [{ strokes: "asc" }, { createdAt: "asc" }],
       take: 50,
     });
-
-    const eventLeaderboard = eventScores.map((s, idx) => ({
+    const leaderboardEvent = eventScores.map((s, idx) => ({
       rank: idx + 1,
       name: s.participant?.name || "-",
       nickname: s.participant?.nickname || s.externalNickname,
@@ -66,15 +109,15 @@ export default async function handler(req, res) {
       points: s.points ?? null,
     }));
 
-    // ④ 시즌 리더보드 (tier 보정 포함)
-    let seasonLeaderboard = [];
+    // 시즌 리더보드 (tier 보정)
+    let leaderboardSeason = [];
     if (current.seasonId) {
       const events = await prisma.event.findMany({
         where: { seasonId: current.seasonId },
         select: { id: true, tier: true },
       });
 
-      const byPid = new Map(); // pid → 합산
+      const byPid = new Map();
       for (const ev of events) {
         const mult = tierMultiplier(ev.tier || 100);
         const rows = await prisma.score.findMany({
@@ -94,39 +137,24 @@ export default async function handler(req, res) {
           byPid.get(pid).total += inc;
         }
       }
-
-      seasonLeaderboard = Array.from(byPid.values())
+      leaderboardSeason = Array.from(byPid.values())
         .sort((a, b) => b.total - a.total)
         .slice(0, 50)
-        .map((v, i) => ({
-          rank: i + 1,
-          name: v.name,
-          nickname: v.nickname,
-          totalPoints: Math.round(v.total),
-        }));
+        .map((v, i) => ({ rank: i + 1, name: v.name, nickname: v.nickname, totalPoints: Math.round(v.total) }));
     }
 
-    // ⑤ 응답
+    // DB Event 기반 응답(프론트 기대 형식에 맞춤)
     return res.status(200).json({
-      currentEvent: {
-        id: current.id,
-        name: current.name,
-        season: current.season
-          ? {
-              id: current.season.id,
-              name: current.season.name,
-              year: current.season.year,
-            }
-          : null,
-        playedAt: current.playedAt,
-        tier: current.tier,
-        overview: current.overview,
-        rules: current.rules,
-        prizes: current.prizes,
-        status: current.status,
+      overview: {
+        title: current.name,
+        schedule: current.playedAt ? fmt(current.playedAt) : "일정 미정",
+        course: current.season?.name || "",
+        format: `티어 ${current.tier ?? 100}`,
+        prizes: current.prizes || "",
       },
-      eventLeaderboard,
-      seasonLeaderboard,
+      event: { id: current.id, title: current.name },
+      leaderboardEvent,
+      leaderboardSeason,
       notices,
     });
   } catch (e) {
