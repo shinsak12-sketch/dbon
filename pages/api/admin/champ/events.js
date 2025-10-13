@@ -3,7 +3,7 @@ import prisma from "../../../../lib/prisma";
 
 const ADMIN_PASS = process.env.ADMIN_PASS || "dbsonsa";
 
-// ───────────────── 유틸 ─────────────────
+// slug
 function slugify(s) {
   return String(s || "")
     .toLowerCase()
@@ -11,6 +11,16 @@ function slugify(s) {
     .replace(/(^-|-$)+/g, "");
 }
 
+// ✅ 날짜 파싱 안전 가드: ISO만 받고, 아니면 null
+function toDateOrNull(v) {
+  if (!v) return null;
+  const ms = Date.parse(v);
+  if (!Number.isFinite(ms)) return null;
+  const d = new Date(ms);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+// 시즌 보장
 async function ensureSeasonForYear(year) {
   const slug = String(year);
   let season = await prisma.season.findUnique({ where: { slug } });
@@ -22,6 +32,7 @@ async function ensureSeasonForYear(year) {
   return season;
 }
 
+// 관리자 인증
 function assertAdmin(req) {
   const isJSON = req.headers["content-type"]?.includes("application/json");
   const pass = isJSON ? req.body?.admin : req.query?.admin;
@@ -32,7 +43,6 @@ function assertAdmin(req) {
   }
 }
 
-// ───────────────── 핸들러 ─────────────────
 export default async function handler(req, res) {
   try {
     const { method } = req;
@@ -43,72 +53,65 @@ export default async function handler(req, res) {
         include: { season: true },
         take: 100,
         select: {
-          id: true,
-          name: true,
-          slug: true,
-          tier: true,
-          playedAt: true,
-          createdAt: true,
+          id: true, name: true, slug: true, tier: true, playedAt: true, createdAt: true,
           season: { select: { id: true, name: true, year: true, slug: true } },
         },
       });
       return res.status(200).json({ items });
     }
 
-    // GET 이외는 관리자 인증
+    // GET 이외 인증
     assertAdmin(req);
 
     if (method === "POST") {
       const b = req.body || {};
 
-      // ✅ title과 name 둘 다 허용
-      const titleVal = (b.title ?? b.name ?? "").toString().trim();
-      if (!titleVal) return res.status(400).json({ error: "TITLE_REQUIRED" });
+      // 필수값 체크: 제목
+      const title = (b.title ?? "").trim();
+      if (!title) return res.status(400).json({ error: "TITLE_REQUIRED" });
 
-      // 시즌(올해) 자동 연결
-      const season = await ensureSeasonForYear(new Date().getFullYear());
+      // 시즌 연결(올해)
+      const now = new Date();
+      const season = await ensureSeasonForYear(now.getFullYear());
 
-      // slug 유니크
-      const slug = `${slugify(titleVal)}-${Date.now()}`;
-
-      // 상태 매핑(관리자 한글 → DB 문자열)
+      // 상태 매핑
       const statusMap = {
-        개요: "draft",
-        오픈: "open",
-        중지: "closed",
-        종료: "closed",
-        결과: "published",
+        "개요": "draft",
+        "오픈": "open",
+        "중지": "closed",
+        "종료": "closed",
+        "결과": "published",
       };
       const status = statusMap[b.state] || "draft";
 
+      // 규칙/요약
       const rulesSummary = [
         b.mode ? `방식:${b.mode}` : null,
         b.adjust ? `보정:${b.adjust}` : null,
         b.manager ? `담당:${b.manager}` : null,
         b.org ? `부서:${b.org}` : null,
-      ]
-        .filter(Boolean)
-        .join(" · ");
+      ].filter(Boolean).join(" · ") || null;
+
+      // ✅ 날짜는 안전 변환
+      const playedAt = toDateOrNull(b.beginAt);
+
+      // slug 유니크
+      const slug = `${slugify(title || "event")}-${Date.now()}`;
 
       const created = await prisma.event.create({
         data: {
           seasonId: season.id,
-          name: titleVal,
+          name: title,
           slug,
           status,
-          playedAt: b.beginAt ? new Date(b.beginAt) : null, // beginAt을 대표일로
+          playedAt,                // Invalid Date면 null로 저장
           overview: String(b.overview || ""),
-          rules: rulesSummary || null,
+          rules: rulesSummary,
           prizes: null,
           tier: Number.isFinite(+b.tier) ? +b.tier : 100,
         },
         select: {
-          id: true,
-          name: true,
-          slug: true,
-          tier: true,
-          playedAt: true,
-          createdAt: true,
+          id: true, name: true, slug: true, tier: true, playedAt: true, createdAt: true,
           season: { select: { id: true, name: true, year: true, slug: true } },
         },
       });
@@ -122,14 +125,13 @@ export default async function handler(req, res) {
       if (!id) return res.status(400).json({ error: "MISSING_ID" });
 
       const statusMap = {
-        개요: "draft",
-        오픈: "open",
-        중지: "closed",
-        종료: "closed",
-        결과: "published",
+        "개요": "draft",
+        "오픈": "open",
+        "중지": "closed",
+        "종료": "closed",
+        "결과": "published",
       };
-      const status =
-        b.state != null ? (statusMap[b.state] || "draft") : undefined;
+      const status = b.state != null ? (statusMap[b.state] || "draft") : undefined;
 
       const rulesSummary =
         b.mode || b.adjust || b.manager || b.org
@@ -138,43 +140,25 @@ export default async function handler(req, res) {
               b.adjust ? `보정:${b.adjust}` : null,
               b.manager ? `담당:${b.manager}` : null,
               b.org ? `부서:${b.org}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")
+            ].filter(Boolean).join(" · ")
           : undefined;
 
-      // ✅ title/name 둘 다 업데이트 허용
-      const nextName =
-        b.title != null
-          ? String(b.title)
-          : b.name != null
-          ? String(b.name)
-          : undefined;
+      const playedAt =
+        b.beginAt !== undefined ? toDateOrNull(b.beginAt) : undefined;
 
       const updated = await prisma.event.update({
         where: { id },
         data: {
-          name: nextName,
+          name: b.title != null ? String(b.title) : undefined,
           status,
-          playedAt:
-            b.beginAt != null
-              ? b.beginAt
-                ? new Date(b.beginAt)
-                : null
-              : undefined,
+          playedAt,
           overview: b.overview != null ? String(b.overview) : undefined,
           rules: rulesSummary,
           prizes: b.prizes != null ? String(b.prizes) : undefined,
-          tier:
-            b.tier != null && Number.isFinite(+b.tier) ? Number(b.tier) : undefined,
+          tier: b.tier != null && Number.isFinite(+b.tier) ? +b.tier : undefined,
         },
         select: {
-          id: true,
-          name: true,
-          slug: true,
-          tier: true,
-          playedAt: true,
-          createdAt: true,
+          id: true, name: true, slug: true, tier: true, playedAt: true, createdAt: true,
           season: { select: { id: true, name: true, year: true, slug: true } },
         },
       });
