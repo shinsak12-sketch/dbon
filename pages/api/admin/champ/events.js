@@ -3,31 +3,14 @@ import prisma from "../../../../lib/prisma";
 
 const ADMIN_PASS = process.env.ADMIN_PASS || "dbsonsa";
 
-/** ────────────── 유틸 ────────────── **/
-
-// 슬러그 생성
+// ───────────────── 유틸 ─────────────────
 function slugify(s) {
   return String(s || "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "event";
+    .replace(/(^-|-$)+/g, "");
 }
 
-// 날짜 파서: datetime-local(YYYY-MM-DDTHH:mm)만 신뢰, 그 외는 null
-function parseDateSafe(v) {
-  if (!v) return null;
-  // 브라우저 <input type="datetime-local"> 값이면 공백/초없음 → 그대로 파싱
-  // 예: "2025-10-01T09:00"
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
-    const d = new Date(v);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-  // 한국식 등 로컬 문자열은 신뢰하지 않고 null 처리
-  return null;
-}
-
-// 올해 시즌 보장
 async function ensureSeasonForYear(year) {
   const slug = String(year);
   let season = await prisma.season.findUnique({ where: { slug } });
@@ -39,27 +22,17 @@ async function ensureSeasonForYear(year) {
   return season;
 }
 
-// 관리자 인증
 function assertAdmin(req) {
   const isJSON = req.headers["content-type"]?.includes("application/json");
   const pass = isJSON ? req.body?.admin : req.query?.admin;
   if (pass !== ADMIN_PASS) {
     const err = new Error("UNAUTHORIZED");
-    err.status = 401;
+    err.code = 401;
     throw err;
   }
 }
 
-// 상태 매핑 (관리자 한글 → DB 문자열)
-const statusMap = {
-  "개요": "draft",
-  "오픈": "open",
-  "중지": "closed",
-  "종료": "closed",
-  "결과": "published",
-};
-
-/** ────────────── 핸들러 ────────────── **/
+// ───────────────── 핸들러 ─────────────────
 export default async function handler(req, res) {
   try {
     const { method } = req;
@@ -87,21 +60,27 @@ export default async function handler(req, res) {
 
     if (method === "POST") {
       const b = req.body || {};
-      if (!b.title || !String(b.title).trim()) {
-        return res.status(400).json({ error: "TITLE_REQUIRED" });
-      }
 
-      // 시즌 확보
+      // ✅ title과 name 둘 다 허용
+      const titleVal = (b.title ?? b.name ?? "").toString().trim();
+      if (!titleVal) return res.status(400).json({ error: "TITLE_REQUIRED" });
+
+      // 시즌(올해) 자동 연결
       const season = await ensureSeasonForYear(new Date().getFullYear());
 
-      // playedAt: beginAt을 대표일로 저장(없으면 null)
-      const playedAt = parseDateSafe(b.beginAt);
+      // slug 유니크
+      const slug = `${slugify(titleVal)}-${Date.now()}`;
 
-      // slug: 안전/유니크
-      const base = slugify(b.title);
-      const slug = `${base}-${Date.now()}`;
+      // 상태 매핑(관리자 한글 → DB 문자열)
+      const statusMap = {
+        개요: "draft",
+        오픈: "open",
+        중지: "closed",
+        종료: "closed",
+        결과: "published",
+      };
+      const status = statusMap[b.state] || "draft";
 
-      // 규칙 요약(옵션)
       const rulesSummary = [
         b.mode ? `방식:${b.mode}` : null,
         b.adjust ? `보정:${b.adjust}` : null,
@@ -109,17 +88,17 @@ export default async function handler(req, res) {
         b.org ? `부서:${b.org}` : null,
       ]
         .filter(Boolean)
-        .join(" · ") || null;
+        .join(" · ");
 
       const created = await prisma.event.create({
         data: {
           seasonId: season.id,
-          name: String(b.title),
+          name: titleVal,
           slug,
-          status: statusMap[b.state] || "draft",
-          playedAt,                           // 핵심: 안전 파싱
-          overview: b.overview ? String(b.overview) : null,
-          rules: rulesSummary,
+          status,
+          playedAt: b.beginAt ? new Date(b.beginAt) : null, // beginAt을 대표일로
+          overview: String(b.overview || ""),
+          rules: rulesSummary || null,
           prizes: null,
           tier: Number.isFinite(+b.tier) ? +b.tier : 100,
         },
@@ -142,33 +121,53 @@ export default async function handler(req, res) {
       const id = Number(b.id);
       if (!id) return res.status(400).json({ error: "MISSING_ID" });
 
-      const data = {
-        name: b.title != null ? String(b.title) : undefined,
-        status: b.state != null ? (statusMap[b.state] || "draft") : undefined,
-        overview: b.overview != null ? String(b.overview) : undefined,
-        rules:
-          b.mode != null || b.adjust != null || b.manager != null || b.org != null
-            ? [
-                b.mode ? `방식:${b.mode}` : null,
-                b.adjust ? `보정:${b.adjust}` : null,
-                b.manager ? `담당:${b.manager}` : null,
-                b.org ? `부서:${b.org}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ") || null
-            : undefined,
-        prizes: b.prizes != null ? String(b.prizes) : undefined,
-        tier:
-          b.tier != null && Number.isFinite(+b.tier) ? Number(b.tier) : undefined,
-        playedAt:
-          b.beginAt !== undefined
-            ? parseDateSafe(b.beginAt) // 핵심: 안전 파싱
-            : undefined,
+      const statusMap = {
+        개요: "draft",
+        오픈: "open",
+        중지: "closed",
+        종료: "closed",
+        결과: "published",
       };
+      const status =
+        b.state != null ? (statusMap[b.state] || "draft") : undefined;
+
+      const rulesSummary =
+        b.mode || b.adjust || b.manager || b.org
+          ? [
+              b.mode ? `방식:${b.mode}` : null,
+              b.adjust ? `보정:${b.adjust}` : null,
+              b.manager ? `담당:${b.manager}` : null,
+              b.org ? `부서:${b.org}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          : undefined;
+
+      // ✅ title/name 둘 다 업데이트 허용
+      const nextName =
+        b.title != null
+          ? String(b.title)
+          : b.name != null
+          ? String(b.name)
+          : undefined;
 
       const updated = await prisma.event.update({
         where: { id },
-        data,
+        data: {
+          name: nextName,
+          status,
+          playedAt:
+            b.beginAt != null
+              ? b.beginAt
+                ? new Date(b.beginAt)
+                : null
+              : undefined,
+          overview: b.overview != null ? String(b.overview) : undefined,
+          rules: rulesSummary,
+          prizes: b.prizes != null ? String(b.prizes) : undefined,
+          tier:
+            b.tier != null && Number.isFinite(+b.tier) ? Number(b.tier) : undefined,
+        },
         select: {
           id: true,
           name: true,
@@ -184,12 +183,13 @@ export default async function handler(req, res) {
     }
 
     if (method === "DELETE") {
-      const id = Number(req.body?.id);
-      if (!id) return res.status(400).json({ error: "MISSING_ID" });
+      const { id } = req.body || {};
+      const eid = Number(id);
+      if (!eid) return res.status(400).json({ error: "MISSING_ID" });
 
-      await prisma.score.deleteMany({ where: { eventId: id } });
+      await prisma.score.deleteMany({ where: { eventId: eid } });
       const deleted = await prisma.event.delete({
-        where: { id },
+        where: { id: eid },
         select: { id: true, name: true, slug: true },
       });
 
@@ -198,9 +198,10 @@ export default async function handler(req, res) {
 
     res.setHeader("Allow", "GET,POST,PUT,DELETE");
     return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
-  } catch (err) {
-    const status = err?.status || 500;
-    console.error("[admin/champ/events] error:", err);
-    return res.status(status).json({ error: err?.message || "SERVER_ERROR" });
+  } catch (e) {
+    const code = e?.code === 401 ? 401 : 500;
+    if (code === 401) return res.status(401).json({ error: "UNAUTHORIZED" });
+    console.error("admin champ events api error:", e);
+    return res.status(500).json({ error: "SERVER_ERROR" });
   }
 }
