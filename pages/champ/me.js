@@ -10,13 +10,13 @@ export default function ChampMe() {
   const [name, setName] = useState("");
   const [loginNickname, setLoginNickname] = useState(""); // 동명이인일 때만 사용
   const [password, setPassword] = useState("");
-  const [needNickname, setNeedNickname] = useState(false); // 서버가 요청하면 true
+  const [needNickname, setNeedNickname] = useState(false);
   const [working, setWorking] = useState(false);
 
   // 최초 비번 설정 입력
   const [newPwd, setNewPwd] = useState("");
   const [newPwd2, setNewPwd2] = useState("");
-  const [setPwdNickname, setSetPwdNickname] = useState(""); // 동명이인 구분용
+  const [setPwdNickname, setSetPwdNickname] = useState("");
 
   // 내 정보/기록
   const [me, setMe] = useState(null);
@@ -28,6 +28,10 @@ export default function ChampMe() {
   const [handi, setHandi] = useState("");
   const [saving, setSaving] = useState(false);
   const [newPwForChange, setNewPwForChange] = useState("");
+
+  // ✅ 참가자 구분/가족명
+  const [ptype, setPtype] = useState("EMPLOYEE"); // EMPLOYEE | FAMILY
+  const [familyName, setFamilyName] = useState("");
 
   /* ----------------- 액션 ----------------- */
 
@@ -50,7 +54,6 @@ export default function ChampMe() {
 
       if (!r.ok) {
         if (data?.error === "AMBIGUOUS_NAME_NEED_NICKNAME") {
-          // 동명이인 감지됨 → 닉네임 칸을 보여주고 포커스
           setNeedNickname(true);
           requestAnimationFrame(() =>
             document.getElementById("login-nickname")?.focus()
@@ -59,7 +62,6 @@ export default function ChampMe() {
           return;
         }
         if (data?.error === "NO_PASSWORD_SET") {
-          // 해당 참가자엔 아직 비번 없음 → 설정 단계로
           setSetPwdNickname(loginNickname);
           setStep("setpwd");
           return;
@@ -74,6 +76,8 @@ export default function ChampMe() {
       setNick(data.me.nickname || "");
       setDept(data.me.dept || "");
       setHandi(data.me.handicap ?? "");
+      setPtype((data.me.type || "EMPLOYEE").toUpperCase());
+      setFamilyName(data.me.familyName || "");
       setNeedNickname(false);
       setStep("view");
     } catch {
@@ -97,7 +101,7 @@ export default function ChampMe() {
         body: JSON.stringify({
           name: name.trim(),
           password: newPwd,
-          nickname: setPwdNickname.trim() || undefined, // 동명이인일 때 필수
+          nickname: setPwdNickname.trim() || undefined,
         }),
       });
       const data = await r.json();
@@ -146,6 +150,8 @@ export default function ChampMe() {
       setNick(d2.me.nickname || "");
       setDept(d2.me.dept || "");
       setHandi(d2.me.handicap ?? "");
+      setPtype((d2.me.type || "EMPLOYEE").toUpperCase());
+      setFamilyName(d2.me.familyName || "");
       setStep("view");
     } catch {
       alert("네트워크 오류");
@@ -154,8 +160,12 @@ export default function ChampMe() {
     }
   }
 
-  // 기본정보 저장(닉/소속/핸디, 비번변경)
+  // 기본정보 저장(닉/소속/핸디/구분/가족명, 비번변경)
   async function save() {
+    if (ptype === "FAMILY" && !String(familyName).trim()) {
+      alert("가족을 선택한 경우 가족명을 반드시 입력하세요.");
+      return;
+    }
     setSaving(true);
     try {
       const r = await fetch("/api/champ/me", {
@@ -163,12 +173,14 @@ export default function ChampMe() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          password,                 // 현재 로그인 비번
-          matchNickname: me?.nickname, // ✅ 동명이인 매칭용(현재 닉)
+          password,                     // 현재 로그인 비번
+          matchNickname: me?.nickname,  // 동명이인 매칭용(현재 닉)
           dept,
-          nickname: nick,           // 바꿀 새 닉
-          handicap: String(handi),  // 서버에서 숫자 변환
-          newPassword: newPwForChange, // 있으면 변경
+          nickname: nick,               // 바꿀 새 닉
+          handicap: String(handi),      // 서버에서 숫자 변환
+          newPassword: newPwForChange,  // 있으면 변경
+          type: ptype,                  // ✅ 참가자 구분
+          familyName: familyName || null, // ✅ 가족명
         }),
       });
       const data = await r.json();
@@ -177,11 +189,17 @@ export default function ChampMe() {
           alert("동명이인이 있어 닉네임 정보가 필요해요. 관리자에게 문의하세요.");
           return;
         }
+        if (data?.error === "PASSWORD_INVALID") {
+          alert("비밀번호가 올바르지 않습니다.");
+          return;
+        }
         alert(data?.error || "수정 실패");
         return;
       }
       alert("저장되었습니다.");
       setMe(data.me);
+      setPtype((data.me.type || "EMPLOYEE").toUpperCase());
+      setFamilyName(data.me.familyName || "");
       setNewPwForChange("");
     } finally {
       setSaving(false);
@@ -206,7 +224,6 @@ export default function ChampMe() {
             />
           </div>
 
-          {/* ⬇️ 처음엔 감춤. 서버가 모호함을 감지했을 때만 표시 */}
           {needNickname && (
             <>
               <div className="rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-900 p-3 text-sm">
@@ -339,7 +356,7 @@ export default function ChampMe() {
         </Link>
       </header>
 
-      <section className="rounded-2xl border bg-white p-6 space-y-3">
+      <section className="rounded-2xl border bg-white p-6 space-y-4">
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-semibold">이름</label>
@@ -353,8 +370,41 @@ export default function ChampMe() {
               onChange={(e) => setNick(e.target.value)}
             />
           </div>
+
+          {/* ✅ 참가자 구분 */}
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-semibold mb-1">참가자 구분</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPtype("EMPLOYEE")}
+                className={`px-3 py-2 rounded-lg border ${ptype === "EMPLOYEE" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white"}`}
+              >
+                직원
+              </button>
+              <button
+                type="button"
+                onClick={() => setPtype("FAMILY")}
+                className={`px-3 py-2 rounded-lg border ${ptype === "FAMILY" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white"}`}
+              >
+                가족
+              </button>
+
+              <input
+                className="flex-1 border rounded-lg p-3"
+                placeholder="가족명"
+                value={familyName}
+                onChange={(e) => setFamilyName(e.target.value)}
+                disabled={ptype !== "FAMILY"}
+              />
+            </div>
+            {ptype === "FAMILY" && (
+              <p className="text-xs text-rose-600 mt-1">가족을 선택한 경우 가족명을 반드시 입력하세요.</p>
+            )}
+          </div>
+
           <div>
-            <label className="block text-sm font-semibold">소속</label>
+            <label className="block text-sm font-semibold">소속(가족은 직원의 소속 기재)</label>
             <input
               className="w-full border rounded-lg p-3"
               value={dept}
@@ -367,8 +417,10 @@ export default function ChampMe() {
               className="w-full border rounded-lg p-3"
               value={handi}
               onChange={(e) => setHandi(e.target.value)}
+              inputMode="decimal"
             />
           </div>
+
           <div className="sm:col-span-2">
             <label className="block text-sm font-semibold">새 비밀번호 (변경 시)</label>
             <input
@@ -376,9 +428,11 @@ export default function ChampMe() {
               className="w-full border rounded-lg p-3"
               value={newPwForChange}
               onChange={(e) => setNewPwForChange(e.target.value)}
+              placeholder="비워두면 변경하지 않습니다"
             />
           </div>
         </div>
+
         <div className="text-right">
           <button
             onClick={save}
@@ -403,15 +457,14 @@ export default function ChampMe() {
                     {s.event?.season?.name} · {s.event?.name}
                   </div>
                   <div className="text-sm text-gray-500">
-                    {s.event?.season?.year} /{" "}
                     {s.event?.playedAt
                       ? new Date(s.event.playedAt).toLocaleDateString("ko-KR")
                       : "일자 미정"}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold">{s.strokes}타</div>
-                  <div className="text-sm text-gray-500">{s.points} pts</div>
+                  <div className="font-bold">{s.strokes ?? "-" }타</div>
+                  <div className="text-sm text-gray-500">{s.points ?? 0} pts</div>
                 </div>
               </li>
             ))}
@@ -420,4 +473,4 @@ export default function ChampMe() {
       </section>
     </main>
   );
-                }
+}
