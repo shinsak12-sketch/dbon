@@ -26,17 +26,58 @@ function fmtRange(startISO, endISO) {
   }
 }
 
+// overview.format에서 "티어 100" 숫자만 뽑기
+const parseTier = (fmt) => {
+  if (!fmt) return undefined;
+  const m = String(fmt).match(/티어\s*(\d+)/);
+  return m ? Number(m[1]) : undefined;
+};
+
 export default function ChampHome() {
   const { data, error, isLoading } = useSWR("/api/champ/home", fetcher, {
     revalidateOnFocus: false,
   });
 
-  const ev = data?.currentEvent ?? null;
-  const schedule = fmtRange(ev?.playedAt ?? ev?.beginAt, ev?.endAt); // API 어떤쪽이든 대응
+  // --- 응답 포맷 호환 레이어 -----------------------------------------
+  // 1) 신형 API(overview/event/leaderboards)
+  // 2) 구형 API(currentEvent/eventLeaderboard/seasonLeaderboard)
+  const api = data || {};
+
+  let ev = null;
+  let scheduleStr = null;
+
+  if (api.currentEvent) {
+    // 구형
+    ev = {
+      name: api.currentEvent.name,
+      beginAt: api.currentEvent.beginAt,
+      endAt: api.currentEvent.endAt,
+      playedAt: api.currentEvent.playedAt,
+      tier: api.currentEvent.tier,
+      status: api.currentEvent.status,
+      rules: api.currentEvent.rules,
+      prizes: api.currentEvent.prizes,
+    };
+    scheduleStr = fmtRange(ev?.playedAt ?? ev?.beginAt, ev?.endAt);
+  } else if (api.overview || api.event) {
+    // 신형
+    ev = {
+      name: api.event?.title || api.overview?.title || "",
+      // 신형은 보통 문자열 schedule을 바로 줌
+      tier: parseTier(api.overview?.format),
+      status: api.overview?.status, // 있을 수도, 없을 수도
+      rules: api.overview?.format || "", // "스트로크 · 티어 100"
+      prizes: api.overview?.prizes || "",
+    };
+    scheduleStr = api.overview?.schedule || null;
+  }
+
+  const eventLB = A(api.eventLeaderboard || api.leaderboardEvent);
+  const seasonLB = A(api.seasonLeaderboard || api.leaderboardSeason);
+  // -------------------------------------------------------------------
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 space-y-8">
-
       {/* 상태 표시 */}
       {isLoading && (
         <div className="rounded-2xl border bg-white p-6 text-gray-600">
@@ -49,11 +90,11 @@ export default function ChampHome() {
         </div>
       )}
 
-      {/* === ① 히어로 카드 (헤더와 로고 중복 제거: 별도 타이틀 없음) === */}
+      {/* === ① 히어로 카드 === */}
       <section className="rounded-3xl border bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-emerald-600 via-emerald-600 to-emerald-700 p-5 sm:p-6 text-white shadow-sm">
         {/* 상단 상태 칩 */}
         <div className="flex flex-wrap gap-2">
-          {!ev?.status && (
+          {!ev?.name && (
             <>
               <span className="px-3 py-1 rounded-full bg-white/15 text-sm">상태 미정</span>
               <span className="px-3 py-1 rounded-full bg-white/15 text-sm">게임방식 미정</span>
@@ -78,14 +119,14 @@ export default function ChampHome() {
             <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
               <div className="text-white/80 text-sm">일정</div>
               <div className="mt-1 font-semibold">
-                {schedule || "일정 미정"}
+                {scheduleStr || "일정 미정"}
               </div>
             </div>
 
             <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
               <div className="text-white/80 text-sm">게임방식</div>
               <div className="mt-1 font-semibold">
-                {(ev?.rules && ev?.rules.trim()) ? ev.rules : "게임방식 미정"}
+                {(ev?.rules && String(ev.rules).trim()) ? ev.rules : "게임방식 미정"}
                 {ev?.tier ? <span className="ml-2 text-white/80">· 티어 {ev.tier}</span> : null}
               </div>
             </div>
@@ -93,7 +134,7 @@ export default function ChampHome() {
             <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
               <div className="text-white/80 text-sm">상품/비고</div>
               <div className="mt-1 font-semibold">
-                {(ev?.prizes && ev.prizes.trim()) ? ev.prizes : "공개 예정"}
+                {(ev?.prizes && String(ev.prizes).trim()) ? ev.prizes : "공개 예정"}
               </div>
             </div>
           </div>
@@ -125,9 +166,9 @@ export default function ChampHome() {
           </Link>
         </div>
 
-        {A(data?.eventLeaderboard).length ? (
+        {eventLB.length ? (
           <ul className="divide-y">
-            {A(data.eventLeaderboard).map((row) => (
+            {eventLB.map((row) => (
               <li key={`${row.rank}-${row.nickname}`} className="flex items-center justify-between py-2">
                 <span className="font-semibold">{row.rank}위</span>
                 <span className="flex-1 text-center">
@@ -160,9 +201,9 @@ export default function ChampHome() {
           </Link>
         </div>
 
-        {A(data?.seasonLeaderboard).length ? (
+        {seasonLB.length ? (
           <ul className="divide-y">
-            {A(data.seasonLeaderboard).map((row) => (
+            {seasonLB.map((row) => (
               <li key={`${row.rank}-${row.nickname}`} className="flex items-center justify-between py-2">
                 <span className="font-semibold">{row.rank}위</span>
                 <span className="flex-1 text-center">
@@ -186,9 +227,9 @@ export default function ChampHome() {
           </Link>
         </div>
 
-        {A(data?.notices).length ? (
+        {A(api?.notices).length ? (
           <ul className="list-inside list-disc space-y-2 text-sm text-gray-700">
-            {A(data.notices).slice(0, 5).map((n) => (
+            {A(api.notices).slice(0, 5).map((n) => (
               <li key={n.id}>
                 <span className="font-medium">{n.title}</span>{" "}
                 {n.createdAt && (
@@ -205,4 +246,4 @@ export default function ChampHome() {
       </section>
     </main>
   );
-          }
+}
