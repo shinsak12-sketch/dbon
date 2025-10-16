@@ -26,7 +26,7 @@ function toDateOrNull(v) {
   return Number.isFinite(d.getTime()) ? d : null;
 }
 
-async function ensureSeasonForYear(year: number) {
+async function ensureSeasonForYear(year) {
   const slug = String(year);
   let season = await prisma.season.findUnique({ where: { slug } });
   if (!season) {
@@ -42,7 +42,6 @@ function assertAdmin(req) {
   const pass = isJSON ? req.body?.admin : req.query?.admin;
   if (pass !== ADMIN_PASS) {
     const err = new Error("UNAUTHORIZED");
-    // @ts-ignore
     err.status = 401;
     throw err;
   }
@@ -82,7 +81,7 @@ export default async function handler(req, res) {
       const slug = `${slugify(title)}-${Date.now()}`;
       const playedAt = toDateOrNull(b.beginAt);
 
-      // 간단 요약을 rules 로 저장(모델에 별도 컬럼이 없어서)
+      // ‘rules’ 칼럼에 간단 요약 저장 (모델에 전용 컬럼이 없어서)
       const rulesSummary =
         [
           b.mode ? `방식:${b.mode}` : null,
@@ -96,12 +95,12 @@ export default async function handler(req, res) {
           seasonId: season.id,
           name: title,
           slug,
-          playedAt,                                 // ✅ 존재하는 컬럼
+          playedAt, // ✅ 존재하는 컬럼만 사용
           tier: Number.isFinite(+b.tier) ? +b.tier : 100,
           overview: pickStr(b, "overview", "desc", "description"),
           rules: rulesSummary,
           prizes: pickStr(b, "prizes", "prize"),
-          // ❌ status/state/classType/mode/adjust 등 미존재 컬럼은 쓰지 않음
+          // ❌ status/state/classType/mode/adjust 같은 비존재 컬럼은 저장하지 않음
         },
         select: {
           id: true, name: true, slug: true, tier: true, playedAt: true, createdAt: true,
