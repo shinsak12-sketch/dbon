@@ -8,121 +8,109 @@ const ERR = {
   NEED_NICK: "AMBIGUOUS_NAME_NEED_NICKNAME",
   NO_PW: "NO_PASSWORD_SET",
   WRONG_PW: "WRONG_PASSWORD",
+  BAD_TYPE: "INVALID_PARTICIPANT_TYPE",
+  FAMILY_NEED_NAME: "FAMILY_NAME_REQUIRED",
   METHOD: "METHOD_NOT_ALLOWED",
   SERVER: "SERVER_ERROR",
 };
 
 const trim = (s) => String(s ?? "").trim();
+const ci = (v) => ({ equals: v, mode: "insensitive" });
+const normType = (t) => {
+  const x = String(t || "").toUpperCase();
+  return x === "FAMILY" ? "FAMILY" : x === "EMPLOYEE" ? "EMPLOYEE" : null;
+};
+
+async function findByNameOrNameNick(name, nickname) {
+  if (nickname) {
+    const p = await prisma.participant.findFirst({
+      where: { name: ci(name), nickname: ci(nickname) },
+    });
+    return { p, needNick: false };
+  }
+  const people = await prisma.participant.findMany({ where: { name: ci(name) } });
+  if (people.length === 0) return { p: null, needNick: false };
+  if (people.length > 1) return { p: null, needNick: true };
+  return { p: people[0], needNick: false };
+}
+
+function toMeDTO(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    dept: p.dept,
+    nickname: p.nickname,
+    handicap: p.handicap,
+    type: p.type || "EMPLOYEE",
+    familyName: p.familyName || null,
+  };
+}
 
 export default async function handler(req, res) {
+  // ─────────────────────────────── POST: 로그인 ───────────────────────────────
   if (req.method === "POST") {
-    // 로그인
     try {
       const name = trim(req.body?.name);
       const password = String(req.body?.password ?? "");
       const nickname = trim(req.body?.nickname);
+      if (!name || !password) return res.status(400).json({ error: ERR.NEED_NAME_PW });
 
-      if (!name || !password) {
-        return res.status(400).json({ error: ERR.NEED_NAME_PW });
+      const { p, needNick } = await findByNameOrNameNick(name, nickname || null);
+      if (!p) {
+        if (needNick) return res.status(400).json({ error: ERR.NEED_NICK });
+        return res.status(404).json({ error: ERR.NOT_FOUND });
       }
 
-      const nameCond = { equals: name, mode: "insensitive" };
-
-      // 닉네임이 오면: 이름+닉 단일 조회
-      let p;
-      if (nickname) {
-        p = await prisma.participant.findFirst({
-          where: {
-            name: nameCond,
-            nickname: { equals: nickname, mode: "insensitive" },
-          },
-        });
-        if (!p) return res.status(404).json({ error: ERR.NOT_FOUND });
-      } else {
-        // 닉이 없으면: 이름으로 목록 조회 → 동명이인이면 닉 요구
-        const people = await prisma.participant.findMany({
-          where: { name: nameCond },
-        });
-        if (people.length === 0)
-          return res.status(404).json({ error: ERR.NOT_FOUND });
-        if (people.length > 1)
-          return res.status(400).json({ error: ERR.NEED_NICK });
-        p = people[0];
-      }
-
-      // ✅ 필드 통일: passwordHash 사용
-      if (!p.passwordHash) {
-        return res.status(400).json({ error: ERR.NO_PW });
-      }
-
+      if (!p.passwordHash) return res.status(400).json({ error: ERR.NO_PW });
       const ok = await bcrypt.compare(password, p.passwordHash);
       if (!ok) return res.status(401).json({ error: ERR.WRONG_PW });
 
-      // 기록 로드
       const scores = await prisma.score.findMany({
         where: { participantId: p.id },
         include: { event: { include: { season: true } } },
         orderBy: [{ createdAt: "desc" }],
       });
 
-      return res.status(200).json({
-        ok: true,
-        me: {
-          id: p.id,
-          name: p.name,
-          dept: p.dept,
-          nickname: p.nickname,
-          handicap: p.handicap,
-        },
-        scores,
-      });
+      return res.status(200).json({ ok: true, me: toMeDTO(p), scores });
     } catch (e) {
       console.error(e);
       return res.status(500).json({ error: ERR.SERVER });
     }
   }
 
+  // ─────────────────────────────── PUT: 내 정보 수정 ───────────────────────────────
   if (req.method === "PUT") {
-    // 내정보 수정(닉/소속/핸디, 비번변경)
     try {
       const name = trim(req.body?.name);
       const password = String(req.body?.password ?? "");
       const matchNickname = trim(req.body?.matchNickname); // 동명이인 매칭용(현재 닉)
-      const newNickname = req.body?.nickname; // 바꿀 닉
+      const newNickname = req.body?.nickname;             // 변경 닉
       const dept = req.body?.dept;
       const handicap = req.body?.handicap;
       const newPassword = req.body?.newPassword;
 
-      if (!name || !password) {
-        return res.status(400).json({ error: ERR.NEED_NAME_PW });
-      }
+      // ✅ 새 필드
+      const typeRaw = req.body?.type;                     // EMPLOYEE | FAMILY
+      const familyNameRaw = req.body?.familyName;         // 문자열/null
 
-      const nameCond = { equals: name, mode: "insensitive" };
+      if (!name || !password) return res.status(400).json({ error: ERR.NEED_NAME_PW });
 
-      // 동명이인이면 matchNickname으로 단일 조회
       let p;
       if (matchNickname) {
         p = await prisma.participant.findFirst({
-          where: {
-            name: nameCond,
-            nickname: { equals: trim(matchNickname), mode: "insensitive" },
-          },
+          where: { name: ci(name), nickname: ci(matchNickname) },
         });
         if (!p) return res.status(404).json({ error: ERR.NOT_FOUND });
       } else {
-        const people = await prisma.participant.findMany({
-          where: { name: nameCond },
-        });
-        if (people.length === 0)
+        const { p: found, needNick } = await findByNameOrNameNick(name, null);
+        if (!found) {
+          if (needNick) return res.status(400).json({ error: ERR.NEED_NICK });
           return res.status(404).json({ error: ERR.NOT_FOUND });
-        if (people.length > 1)
-          return res.status(400).json({ error: ERR.NEED_NICK });
-        p = people[0];
+        }
+        p = found;
       }
 
-      // ✅ 필드 통일
       if (!p.passwordHash) return res.status(400).json({ error: ERR.NO_PW });
-
       const ok = await bcrypt.compare(password, p.passwordHash);
       if (!ok) return res.status(401).json({ error: ERR.WRONG_PW });
 
@@ -135,26 +123,40 @@ export default async function handler(req, res) {
         if (!Number.isNaN(h)) data.handicap = h;
       }
 
-      // ✅ 새 비번 저장도 passwordHash 로
+      // 새 비밀번호
       if (newPassword && trim(newPassword) !== "") {
         data.passwordHash = await bcrypt.hash(String(newPassword), 10);
       }
 
-      const updated = await prisma.participant.update({
-        where: { id: p.id },
-        data,
-      });
+      // ✅ 참가자 구분/가족명 처리
+      if (typeRaw !== undefined) {
+        const t = normType(typeRaw);
+        if (!t) return res.status(400).json({ error: ERR.BAD_TYPE });
+        data.type = t;
+        if (t === "FAMILY") {
+          const fam = trim(familyNameRaw);
+          if (!fam) return res.status(400).json({ error: ERR.FAMILY_NEED_NAME });
+          data.familyName = fam;
+        } else {
+          // 직원이면 가족명 비움
+          data.familyName = null;
+        }
+      } else if (familyNameRaw !== undefined) {
+        // type 변경은 없고 가족명만 왔을 때: 현재 type이 FAMILY인지 확인
+        const isFamily = (p.type || "EMPLOYEE") === "FAMILY";
+        if (!isFamily) {
+          // 직원이면 무시(또는 null 강제)
+          data.familyName = null;
+        } else {
+          const fam = trim(familyNameRaw);
+          if (!fam) return res.status(400).json({ error: ERR.FAMILY_NEED_NAME });
+          data.familyName = fam;
+        }
+      }
 
-      return res.status(200).json({
-        ok: true,
-        me: {
-          id: updated.id,
-          name: updated.name,
-          dept: updated.dept,
-          nickname: updated.nickname,
-          handicap: updated.handicap,
-        },
-      });
+      const updated = await prisma.participant.update({ where: { id: p.id }, data });
+
+      return res.status(200).json({ ok: true, me: toMeDTO(updated) });
     } catch (e) {
       console.error(e);
       return res.status(500).json({ error: ERR.SERVER });
