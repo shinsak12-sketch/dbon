@@ -193,10 +193,13 @@ export default async function handler(req, res) {
 
     res.setHeader("Allow", "GET,POST,PUT,DELETE");
     return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
-  } catch (e) {
-    const code = e?.code === 401 ? 401 : 500;
-    if (code === 401) return res.status(401).json({ error: "UNAUTHORIZED" });
-    console.error("admin champ events api error:", e);
-    return res.status(500).json({ error: "SERVER_ERROR" });
-  }
+  // ...
+} catch (e) {
+  console.error("admin/champ/events error:", e);
+  const isProd = process.env.NODE_ENV === "production";
+  return res.status(500).json(
+    isProd
+      ? { error: "SERVER_ERROR" }
+      : { error: "SERVER_ERROR", message: e.message, stack: e.stack }
+  );
 }
