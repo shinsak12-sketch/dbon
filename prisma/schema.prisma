@@ -109,18 +109,22 @@ model Notice {
 }
 
 model Participant {
-  id           Int       @id @default(autoincrement())
+  id           Int               @id @default(autoincrement())
   name         String
   dept         String?
   nickname     String
   handicap     Float?
-  passwordHash String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  passwordHash String?           // 기존 데이터 고려해 optional 유지
+  // ✅ 추가된 필드들
+  type         ParticipantType   @default(STAFF) // STAFF | FAMILY
+  familyName   String?                           // FAMILY 선택 시 필수
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
   scores       Score[]
   regs         Registration[]
   @@unique([nickname])
   @@index([name])
+  @@index([type])
 }
 
 model Registration {
@@ -185,4 +189,10 @@ enum EventMode {
 enum ScoreAdjust {
   NONE
   APPLY
+}
+
+// ✅ 새 enum
+enum ParticipantType {
+  STAFF
+  FAMILY
 }
