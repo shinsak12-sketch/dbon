@@ -193,6 +193,7 @@ enum ScoreAdjust {
 
 // ✅ 통일: EMPLOYEE | FAMILY
 enum ParticipantType {
+  STAFF
   EMPLOYEE
   FAMILY
 }
