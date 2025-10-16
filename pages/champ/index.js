@@ -106,44 +106,48 @@ export default function ChampHome() {
         </div>
       )}
 
-      {/* === 개요 카드 === */}
-      <section className="rounded-3xl border bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-emerald-600 via-emerald-600 to-emerald-700 p-5 sm:p-6 text-white shadow-sm">
-        <div className="grid gap-3">
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            {title}
-          </h2>
+      {/* === ① 히어로 카드 === */}
+<section className="rounded-3xl border bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-emerald-600 via-emerald-600 to-emerald-700 p-5 sm:p-6 text-white shadow-sm">
+  <div className="grid gap-3">
+    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+      {ev?.roundNo ? `제${ev.roundNo}회 ${ev.name}` : ev?.name || "대회 정보 준비중"}
+    </h2>
 
-          <div className="grid gap-3">
-            {/* 주관부서 */}
-            <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
-              <div className="text-white/80 text-sm">주관부서</div>
-              <div className="mt-1 font-semibold">
-                {ev.organizer || "미정"}
-              </div>
-            </div>
+    <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
+      <div className="text-white/80 text-sm">주관부서</div>
+      <div className="mt-1 font-semibold">{ev?.organizer || "미정"}</div>
+    </div>
 
-            {/* 일정 */}
-            <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
-              <div className="text-white/80 text-sm">일정</div>
-              <div className="mt-1 font-semibold">{schedule}</div>
-            </div>
+    <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
+      <div className="text-white/80 text-sm">일정</div>
+      <div className="mt-1 font-semibold">{ev?.scheduleText || "일정 미정"}</div>
+    </div>
 
-            {/* 게임방식 */}
-            <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
-              <div className="text-white/80 text-sm">게임방식</div>
-              <div className="mt-1 font-semibold">{modeLine}</div>
-            </div>
+    <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
+      <div className="text-white/80 text-sm">게임방식</div>
+      <div className="mt-1 font-semibold">
+        {ev?.mode ? `${ev.mode} · ${ev.tierName}(${ev.tier})` : "게임방식 미정"}
+      </div>
+    </div>
 
-            {/* 상품/비고 */}
-            <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
-              <div className="text-white/80 text-sm">상품/비고</div>
-              <div className="mt-1 font-semibold">
-                {ev.prizes ? ev.prizes : "공개 예정"}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+    <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
+      <div className="text-white/80 text-sm">상품/비고</div>
+      <div className="mt-1 font-semibold">
+        {ev?.prizes && ev.prizes.trim() ? ev.prizes : "공개 예정"}
+      </div>
+    </div>
+
+    {/* 버튼 영역 */}
+    <div className="mt-2 flex gap-2">
+      <Link href="/champ/leaderboard/event" className="px-4 py-2 rounded-xl bg-white text-emerald-700 font-bold">
+        대회순위
+      </Link>
+      <Link href="/champ/leaderboard/season" className="px-4 py-2 rounded-xl border border-white/40 font-bold text-white">
+        연간순위
+      </Link>
+    </div>
+  </div>
+</section>
 
       {/* === 액션 버튼 (개요 아래, 공지 위) === */}
       <section className="flex gap-3">
