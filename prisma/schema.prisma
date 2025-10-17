@@ -74,18 +74,18 @@ model Event {
   name        String
   slug        String         @unique
   roundNo     String?
-  organizer   String?
-  manager     String?
-  beginAt     DateTime?
-  endAt       DateTime?
+  organizer   String?        
+  manager     String?        
+  beginAt     DateTime?      
+  endAt       DateTime?      
+  playedAt    DateTime?      
   classType   EventClassType @default(OPEN)
   state       EventState     @default(OVERVIEW)
   mode        EventMode      @default(STROKE)
   adjust      ScoreAdjust    @default(NONE)
   tier        Int            @default(100)
-  playedAt    DateTime?
   overview    String?        @db.Text
-  rules       String?        @db.Text
+  rules       String?        @db.Text   
   prizes      String?        @db.Text
   season      Season         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   scores      Score[]
