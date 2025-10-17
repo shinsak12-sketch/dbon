@@ -57,26 +57,32 @@ export default function ChampHome() {
       </section>
 
       {/* 공지사항 */}
-      <section className="rounded-2xl border bg-white p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-xl font-bold">공지사항</h3>
-          <Link href="/champ/notice" className="text-sm text-emerald-700 hover:underline">더보기 →</Link>
-        </div>
-        {Array.isArray(data?.notices) && data.notices.length ? (
-          <ul className="list-inside list-disc space-y-2 text-sm text-gray-700">
-            {data.notices.map((n) => (
-              <li key={n.id}>
-                <span className="font-medium">{n.title}</span>{" "}
-                {n.createdAt && (
-                  <span className="text-xs text-gray-400">· {new Date(n.createdAt).toLocaleDateString("ko-KR")}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-gray-500">공지사항이 없습니다.</p>
-        )}
-      </section>
+<section className="rounded-2xl border bg-white p-6">
+  <div className="mb-4 flex items-center justify-between">
+    <h3 className="text-xl font-bold">공지사항</h3>
+    <Link href="/champ/notice" className="text-sm text-emerald-700 hover:underline">
+      더보기 →
+    </Link>
+  </div>
+
+  {Array.isArray(data?.notices) && data.notices.length ? (
+    <ul className="space-y-3">
+      {data.notices.map((n) => (
+        <li key={n.id} className="text-sm">
+          <div className="font-medium mb-0.5">{n.title}</div>
+          <div className="text-gray-700 whitespace-pre-wrap">{n.content}</div>
+          {n.createdAt && (
+            <div className="text-xs text-gray-400 mt-1">
+              {new Date(n.createdAt).toLocaleDateString("ko-KR")}
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p className="text-sm text-gray-500">공지사항이 없습니다.</p>
+  )}
+</section>
     </main>
   );
 }
