@@ -1,79 +1,81 @@
 // pages/api/admin/champ/notices.js
 import prisma from "../../../../lib/prisma";
 
-const KEY = "champ:notices";
+const ADMIN_PASS = process.env.ADMIN_PASS || "dbsonsa";
 
-async function loadKV(key, fallback) {
-  const s = await prisma.setting.findUnique({ where: { key } });
-  if (!s?.value) return fallback;
-  try { return JSON.parse(s.value); } catch { return fallback; }
+function assertAdmin(req) {
+  const isJSON = (req.headers["content-type"] || "").includes("application/json");
+  const pass = isJSON ? req.body?.admin : req.query?.admin;
+  if (pass !== ADMIN_PASS) {
+    const err = new Error("UNAUTHORIZED");
+    err.status = 401;
+    throw err;
+  }
 }
-async function saveKV(key, val) {
-  await prisma.setting.upsert({
-    where: { key },
-    update: { value: JSON.stringify(val ?? null) },
-    create: { key, value: JSON.stringify(val ?? null) },
-  });
-}
+const t = (s) => String(s ?? "").trim();
 
 export default async function handler(req, res) {
-  const { method } = req;
-
-  if (method !== "GET") {
-    const guard = req.body?.admin || req.query.admin;
-    if (guard !== "dbsonsa") return res.status(401).json({ error: "UNAUTHORIZED" });
-  }
-
   try {
-    const list = (await loadKV(KEY, [])) || [];
+    const { method } = req;
 
     if (method === "GET") {
-      const items = [...list].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-      return res.json({ items });
+      const items = await prisma.notice.findMany({
+        orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
+        take: 100,
+        select: { id: true, title: true, content: true, pinned: true, createdAt: true },
+      });
+      return res.status(200).json({ items });
     }
 
     if (method === "POST") {
-      const b = req.body || {};
-      const item = {
-        id: Date.now(),
-        title: String(b.title || ""),
-        content: String(b.content || ""),
-        pinned: !!b.pinned,
-        createdAt: new Date().toISOString(),
-      };
-      await saveKV(KEY, [item, ...list]);
+      assertAdmin(req);
+      const title = t(req.body?.title);
+      const content = t(req.body?.content);
+      const pinned = !!req.body?.pinned;
+      if (!title || !content) return res.status(400).json({ error: "TITLE_AND_CONTENT_REQUIRED" });
+
+      const item = await prisma.notice.create({
+        data: { title, content, pinned },
+        select: { id: true, title: true, content: true, pinned: true, createdAt: true },
+      });
       return res.status(201).json({ ok: true, item });
     }
 
     if (method === "PUT") {
-      const b = req.body || {};
-      if (!b.id) return res.status(400).json({ error: "MISSING_ID" });
-      const idx = list.findIndex((x) => x.id === b.id);
-      if (idx === -1) return res.status(404).json({ error: "NOT_FOUND" });
+      assertAdmin(req);
+      const id = Number(req.body?.id);
+      if (!id) return res.status(400).json({ error: "MISSING_ID" });
 
-      const updated = {
-        ...list[idx],
-        title: String(b.title ?? list[idx].title),
-        content: String(b.content ?? list[idx].content),
-        pinned: typeof b.pinned === "boolean" ? b.pinned : list[idx].pinned,
-      };
-      const next = [...list];
-      next[idx] = updated;
-      await saveKV(KEY, next);
-      return res.json({ ok: true, item: updated });
+      const data = {};
+      if (req.body?.title !== undefined) data.title = t(req.body.title);
+      if (req.body?.content !== undefined) data.content = t(req.body.content);
+      if (req.body?.pinned !== undefined) data.pinned = !!req.body.pinned;
+
+      const item = await prisma.notice.update({
+        where: { id },
+        data,
+        select: { id: true, title: true, content: true, pinned: true, createdAt: true },
+      });
+      return res.status(200).json({ ok: true, item });
     }
 
     if (method === "DELETE") {
-      const { id } = req.body || {};
+      assertAdmin(req);
+      const id = Number(req.body?.id);
       if (!id) return res.status(400).json({ error: "MISSING_ID" });
-      await saveKV(KEY, list.filter((x) => x.id !== id));
-      return res.json({ ok: true });
+
+      const item = await prisma.notice.delete({
+        where: { id },
+        select: { id: true, title: true },
+      });
+      return res.status(200).json({ ok: true, item });
     }
 
     res.setHeader("Allow", "GET,POST,PUT,DELETE");
-    return res.status(405).end("Method Not Allowed");
+    return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "SERVER_ERROR" });
+    console.error("admin/champ/notices error:", e);
+    const isProd = process.env.NODE_ENV === "production";
+    return res.status(e.status || 500).json(isProd ? { error: "SERVER_ERROR" } : { error: "SERVER_ERROR", message: e.message });
   }
 }
