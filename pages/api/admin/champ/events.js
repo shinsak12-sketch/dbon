@@ -2,25 +2,40 @@
 import prisma from "../../../../lib/prisma";
 
 const ADMIN_PASS = process.env.ADMIN_PASS || "dbsonsa";
-const t = (s) => String(s ?? "").trim();
-const toDate = (v) => {
-  if (!v) return null;
-  const d = new Date(v);
-  return Number.isFinite(d.getTime()) ? d : null;
-};
 
-const CLASS_KO2EN = {
-  "오픈": "OPEN",
-  "클래식": "CLASSIC",
-  "인비테이셔널": "INVITATIONAL",
-  "챔피언십": "CHAMPIONSHIP",
-  "마스터스": "MASTERS",
-  "챌린지": "CHALLENGE",
-  "플레이오프": "PLAYOFF",
-};
-const MODE_KO2EN = { "스트로크": "STROKE", "포썸": "FOURSOME" };
-const STATE_KO2EN = { "개요": "OVERVIEW", "오픈": "OPEN", "중지": "HOLD", "종료": "FINISH", "결과": "RESULT" };
-const ADJUST_KO2EN = { "적용": "APPLY", "미적용": "NONE" };
+/* utils */
+const slugify = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+
+function pickStr(obj, ...keys) {
+  for (const k of keys) {
+    const v = obj?.[k];
+    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+  }
+  return "";
+}
+
+function toDateOrNull(v) {
+  if (!v) return null;
+  const t = Date.parse(v);
+  if (!Number.isFinite(t)) return null;
+  const d = new Date(t);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+async function ensureSeasonForYear(year) {
+  const slug = String(year);
+  let season = await prisma.season.findUnique({ where: { slug } });
+  if (!season) {
+    season = await prisma.season.create({
+      data: { name: `${year} Season`, year, slug, status: "open" },
+    });
+  }
+  return season;
+}
 
 function assertAdmin(req) {
   const isJSON = (req.headers["content-type"] || "").includes("application/json");
@@ -32,6 +47,7 @@ function assertAdmin(req) {
   }
 }
 
+/* handler */
 export default async function handler(req, res) {
   try {
     const { method } = req;
@@ -41,87 +57,104 @@ export default async function handler(req, res) {
         orderBy: [{ createdAt: "desc" }],
         take: 100,
         select: {
-          id: true, name: true, slug: true, tier: true,
-          beginAt: true, endAt: true, organizer: true,
-          classType: true, state: true, mode: true, adjust: true,
-          overview: true, prizes: true, roundNo: true,
+          id: true,
+          name: true,
+          slug: true,
+          tier: true,
+          playedAt: true,
+          createdAt: true,
           season: { select: { id: true, name: true, year: true, slug: true } },
         },
       });
       return res.status(200).json({ items });
     }
 
+    // write ops need admin
+    assertAdmin(req);
+    const b = req.body || {};
+
     if (method === "POST") {
-      assertAdmin(req);
-      const b = req.body || {};
-      const title = t(b.name || b.title || b.eventTitle);
+      const title = pickStr(b, "title", "name", "eventTitle");
       if (!title) return res.status(400).json({ error: "TITLE_REQUIRED" });
 
-      // 시즌 (올해)
-      const year = new Date().getFullYear();
-      const seasonSlug = String(year);
-      let season = await prisma.season.findUnique({ where: { slug: seasonSlug } });
-      if (!season) {
-        season = await prisma.season.create({ data: { name: `${year} Season`, year, slug: seasonSlug, status: "open" } });
-      }
+      const season = await ensureSeasonForYear(new Date().getFullYear());
+      const slug = `${slugify(title)}-${Date.now()}`;
+      const playedAt = toDateOrNull(b.beginAt);
+
+      // ‘rules’ 칼럼에 간단 요약 저장 (모델에 전용 컬럼이 없어서)
+      const rulesSummary =
+        [
+          b.mode ? `방식:${b.mode}` : null,
+          b.adjust ? `보정:${b.adjust}` : null,
+          b.manager ? `담당:${b.manager}` : null,
+          (b.org || b.organizer) ? `부서:${b.org || b.organizer}` : null,
+        ].filter(Boolean).join(" · ") || null;
 
       const created = await prisma.event.create({
         data: {
           seasonId: season.id,
           name: title,
-          roundNo: t(b.roundNo) || null,
-          organizer: t(b.organizer) || null,
-          manager: t(b.manager) || null,
-          beginAt: toDate(b.beginAt),
-          endAt: toDate(b.endAt),
-          classType: CLASS_KO2EN[b.classType] || "OPEN",
-          state: STATE_KO2EN[b.state] || "OVERVIEW",
-          mode: MODE_KO2EN[b.mode] || "STROKE",
-          adjust: ADJUST_KO2EN[b.adjust] || "NONE",
+          slug,
+          playedAt, // ✅ 존재하는 컬럼만 사용
           tier: Number.isFinite(+b.tier) ? +b.tier : 100,
-          overview: t(b.overview) || null,
-          prizes: t(b.prizes || b.prize) || null,
-          // slug는 굳이 안 쓰면 빼도 됨(현재 페이지 경로에서 사용 안 함)
+          overview: pickStr(b, "overview", "desc", "description"),
+          rules: rulesSummary,
+          prizes: pickStr(b, "prizes", "prize"),
+          // ❌ status/state/classType/mode/adjust 같은 비존재 컬럼은 저장하지 않음
         },
-        select: { id: true },
+        select: {
+          id: true, name: true, slug: true, tier: true, playedAt: true, createdAt: true,
+          season: { select: { id: true, name: true, year: true, slug: true } },
+        },
       });
+
       return res.status(201).json({ ok: true, item: created });
     }
 
     if (method === "PUT") {
-      assertAdmin(req);
-      const b = req.body || {};
       const id = Number(b.id);
       if (!id) return res.status(400).json({ error: "MISSING_ID" });
 
       const patch = {};
-      if (b.name !== undefined || b.title !== undefined || b.eventTitle !== undefined)
-        patch.name = t(b.name || b.title || b.eventTitle);
-
-      if (b.roundNo !== undefined) patch.roundNo = t(b.roundNo) || null;
-      if (b.organizer !== undefined) patch.organizer = t(b.organizer) || null;
-      if (b.manager !== undefined) patch.manager = t(b.manager) || null;
-      if (b.beginAt !== undefined) patch.beginAt = toDate(b.beginAt);
-      if (b.endAt !== undefined) patch.endAt = toDate(b.endAt);
-      if (b.classType !== undefined) patch.classType = CLASS_KO2EN[b.classType] || "OPEN";
-      if (b.state !== undefined) patch.state = STATE_KO2EN[b.state] || "OVERVIEW";
-      if (b.mode !== undefined) patch.mode = MODE_KO2EN[b.mode] || "STROKE";
-      if (b.adjust !== undefined) patch.adjust = ADJUST_KO2EN[b.adjust] || "NONE";
+      const title = pickStr(b, "title", "name", "eventTitle");
+      if (title) patch.name = title;
+      if (b.beginAt !== undefined) patch.playedAt = toDateOrNull(b.beginAt);
       if (b.tier !== undefined && Number.isFinite(+b.tier)) patch.tier = +b.tier;
-      if (b.overview !== undefined) patch.overview = t(b.overview) || null;
-      if (b.prizes !== undefined || b.prize !== undefined) patch.prizes = t(b.prizes || b.prize) || null;
+      if (b.overview !== undefined || b.desc !== undefined || b.description !== undefined)
+        patch.overview = pickStr(b, "overview", "desc", "description");
+      if (b.prizes !== undefined || b.prize !== undefined)
+        patch.prizes = pickStr(b, "prizes", "prize");
+      if (b.mode !== undefined || b.adjust !== undefined || b.manager !== undefined || b.org !== undefined || b.organizer !== undefined) {
+        patch.rules = [
+          b.mode ? `방식:${b.mode}` : null,
+          b.adjust ? `보정:${b.adjust}` : null,
+          b.manager ? `담당:${b.manager}` : null,
+          (b.org || b.organizer) ? `부서:${b.org || b.organizer}` : null,
+        ].filter(Boolean).join(" · ") || null;
+      }
 
-      const updated = await prisma.event.update({ where: { id }, data: patch, select: { id: true } });
+      const updated = await prisma.event.update({
+        where: { id },
+        data: patch,
+        select: {
+          id: true, name: true, slug: true, tier: true, playedAt: true, createdAt: true,
+          season: { select: { id: true, name: true, year: true, slug: true } },
+        },
+      });
+
       return res.status(200).json({ ok: true, item: updated });
     }
 
     if (method === "DELETE") {
-      assertAdmin(req);
-      const id = Number(req.body?.id);
-      if (!id) return res.status(400).json({ error: "MISSING_ID" });
-      await prisma.score.deleteMany({ where: { eventId: id } });
-      await prisma.event.delete({ where: { id } });
-      return res.status(200).json({ ok: true });
+      const eid = Number(b.id);
+      if (!eid) return res.status(400).json({ error: "MISSING_ID" });
+
+      await prisma.score.deleteMany({ where: { eventId: eid } });
+      const deleted = await prisma.event.delete({
+        where: { id: eid },
+        select: { id: true, name: true, slug: true },
+      });
+      return res.status(200).json({ ok: true, item: deleted });
     }
 
     res.setHeader("Allow", "GET,POST,PUT,DELETE");
@@ -129,6 +162,8 @@ export default async function handler(req, res) {
   } catch (e) {
     console.error("admin/champ/events error:", e);
     const isProd = process.env.NODE_ENV === "production";
-    return res.status(e.status || 500).json(isProd ? { error: "SERVER_ERROR" } : { error: "SERVER_ERROR", message: e.message });
+    return res
+      .status(e.status || 500)
+      .json(isProd ? { error: "SERVER_ERROR" } : { error: "SERVER_ERROR", message: e.message, stack: e.stack });
   }
 }
