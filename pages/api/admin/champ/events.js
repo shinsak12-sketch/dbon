@@ -47,6 +47,20 @@ function assertAdmin(req) {
   }
 }
 
+// 허용 enum 값 가드 (스키마 enum과 맞춰서 대문자 기대)
+const ALLOWED = {
+  classType: ["OPEN", "AMATEUR", "PRO", "CLUB", "JUNIOR"], // 필요에 맞게 확장
+  state: ["OVERVIEW", "READY", "LIVE", "FINISHED", "CANCELLED"],
+  mode: ["STROKE", "MATCH", "SCRAMBLE"],
+  adjust: ["NONE", "HANDICAP", "DOUBLE_PEORIA", "CALLAWAY"],
+};
+
+function normEnum(v, key) {
+  if (!v) return undefined;
+  const U = String(v).trim().toUpperCase();
+  return ALLOWED[key]?.includes(U) ? U : undefined;
+}
+
 /* handler */
 export default async function handler(req, res) {
   try {
@@ -61,7 +75,18 @@ export default async function handler(req, res) {
           name: true,
           slug: true,
           tier: true,
+          beginAt: true,
+          endAt: true,
           playedAt: true,
+          organizer: true,
+          manager: true,
+          classType: true,
+          state: true,
+          mode: true,
+          adjust: true,
+          overview: true,
+          rules: true,
+          prizes: true,
           createdAt: true,
           season: { select: { id: true, name: true, year: true, slug: true } },
         },
@@ -77,17 +102,37 @@ export default async function handler(req, res) {
       const title = pickStr(b, "title", "name", "eventTitle");
       if (!title) return res.status(400).json({ error: "TITLE_REQUIRED" });
 
-      const season = await ensureSeasonForYear(new Date().getFullYear());
-      const slug = `${slugify(title)}-${Date.now()}`;
-      const playedAt = toDateOrNull(b.beginAt);
+      const beginAt = toDateOrNull(b.beginAt);
+      const endAt = toDateOrNull(b.endAt);
+      if (beginAt && endAt && endAt < beginAt) {
+        return res.status(400).json({ error: "INVALID_DATE_RANGE" });
+      }
 
-      // ‘rules’ 칼럼에 간단 요약 저장 (모델에 전용 컬럼이 없어서)
+      const seasonBase = beginAt || new Date();
+      const season = await ensureSeasonForYear(seasonBase.getFullYear());
+
+      const slug = `${slugify(title)}-${Date.now()}`;
+
+      // enum 정규화
+      const classType = normEnum(b.classType, "classType"); // 없으면 스키마 default(OPEN)
+      const state = normEnum(b.state, "state");             // 없으면 default(OVERVIEW)
+      const mode = normEnum(b.mode, "mode");                // 없으면 default(STROKE)
+      const adjust = normEnum(b.adjust, "adjust");          // 없으면 default(NONE)
+
+      const organizer = pickStr(b, "org", "organizer");
+      const manager = pickStr(b, "manager");
+
+      // playedAt: 우선순위 입력값 > endAt > beginAt
+      const playedAt =
+        toDateOrNull(b.playedAt) || endAt || beginAt || null;
+
+      // 표시용 요약 (실제 컬럼 저장과 별개)
       const rulesSummary =
         [
-          b.mode ? `방식:${b.mode}` : null,
-          b.adjust ? `보정:${b.adjust}` : null,
-          b.manager ? `담당:${b.manager}` : null,
-          (b.org || b.organizer) ? `부서:${b.org || b.organizer}` : null,
+          mode ? `방식:${mode}` : null,
+          adjust ? `보정:${adjust}` : null,
+          manager ? `담당:${manager}` : null,
+          organizer ? `부서:${organizer}` : null,
         ].filter(Boolean).join(" · ") || null;
 
       const created = await prisma.event.create({
@@ -95,15 +140,27 @@ export default async function handler(req, res) {
           seasonId: season.id,
           name: title,
           slug,
-          playedAt, // ✅ 존재하는 컬럼만 사용
           tier: Number.isFinite(+b.tier) ? +b.tier : 100,
           overview: pickStr(b, "overview", "desc", "description"),
-          rules: rulesSummary,
           prizes: pickStr(b, "prizes", "prize"),
-          // ❌ status/state/classType/mode/adjust 같은 비존재 컬럼은 저장하지 않음
+          beginAt,
+          endAt,
+          playedAt,
+          organizer: organizer || null,
+          manager: manager || null,
+          ...(classType ? { classType } : {}),
+          ...(state ? { state } : {}),
+          ...(mode ? { mode } : {}),
+          ...(adjust ? { adjust } : {}),
+          rules: rulesSummary,
         },
         select: {
-          id: true, name: true, slug: true, tier: true, playedAt: true, createdAt: true,
+          id: true, name: true, slug: true, tier: true,
+          beginAt: true, endAt: true, playedAt: true,
+          organizer: true, manager: true,
+          classType: true, state: true, mode: true, adjust: true,
+          overview: true, rules: true, prizes: true,
+          createdAt: true,
           season: { select: { id: true, name: true, year: true, slug: true } },
         },
       });
@@ -116,28 +173,84 @@ export default async function handler(req, res) {
       if (!id) return res.status(400).json({ error: "MISSING_ID" });
 
       const patch = {};
+
+      // 제목
       const title = pickStr(b, "title", "name", "eventTitle");
       if (title) patch.name = title;
-      if (b.beginAt !== undefined) patch.playedAt = toDateOrNull(b.beginAt);
+
+      // 날짜
+      if (b.beginAt !== undefined) patch.beginAt = toDateOrNull(b.beginAt);
+      if (b.endAt !== undefined) patch.endAt = toDateOrNull(b.endAt);
+      if (b.playedAt !== undefined) patch.playedAt = toDateOrNull(b.playedAt);
+
+      // 숫자
       if (b.tier !== undefined && Number.isFinite(+b.tier)) patch.tier = +b.tier;
+
+      // 텍스트
       if (b.overview !== undefined || b.desc !== undefined || b.description !== undefined)
         patch.overview = pickStr(b, "overview", "desc", "description");
       if (b.prizes !== undefined || b.prize !== undefined)
         patch.prizes = pickStr(b, "prizes", "prize");
-      if (b.mode !== undefined || b.adjust !== undefined || b.manager !== undefined || b.org !== undefined || b.organizer !== undefined) {
-        patch.rules = [
-          b.mode ? `방식:${b.mode}` : null,
-          b.adjust ? `보정:${b.adjust}` : null,
-          b.manager ? `담당:${b.manager}` : null,
-          (b.org || b.organizer) ? `부서:${b.org || b.organizer}` : null,
-        ].filter(Boolean).join(" · ") || null;
+
+      // 실 컬럼: organizer/manager/enum들
+      if (b.org !== undefined || b.organizer !== undefined)
+        patch.organizer = pickStr(b, "org", "organizer") || null;
+      if (b.manager !== undefined)
+        patch.manager = pickStr(b, "manager") || null;
+
+      const classType = normEnum(b.classType, "classType");
+      const state = normEnum(b.state, "state");
+      const mode = normEnum(b.mode, "mode");
+      const adjust = normEnum(b.adjust, "adjust");
+      if (classType) patch.classType = classType;
+      if (state) patch.state = state;
+      if (mode) patch.mode = mode;
+      if (adjust) patch.adjust = adjust;
+
+      // 요약 rules 갱신 (표시용)
+      if (
+        b.mode !== undefined ||
+        b.adjust !== undefined ||
+        b.manager !== undefined ||
+        b.org !== undefined ||
+        b.organizer !== undefined
+      ) {
+        const _mode = mode || undefined;
+        const _adjust = adjust || undefined;
+        const _manager = patch.manager !== undefined ? patch.manager : undefined;
+        const _org = patch.organizer !== undefined ? patch.organizer : undefined;
+
+        const rulesSummary =
+          [
+            _mode ? `방식:${_mode}` : null,
+            _adjust ? `보정:${_adjust}` : null,
+            _manager ? `담당:${_manager}` : null,
+            _org ? `부서:${_org}` : null,
+          ].filter(Boolean).join(" · ") || null;
+
+        patch.rules = rulesSummary;
+      }
+
+      // 날짜 관계 검증 (있을 때만)
+      if (patch.beginAt || patch.endAt) {
+        const current = await prisma.event.findUnique({ where: { id }, select: { beginAt: true, endAt: true } });
+        const beginAt = patch.beginAt ?? current?.beginAt ?? null;
+        const endAt = patch.endAt ?? current?.endAt ?? null;
+        if (beginAt && endAt && endAt < beginAt) {
+          return res.status(400).json({ error: "INVALID_DATE_RANGE" });
+        }
       }
 
       const updated = await prisma.event.update({
         where: { id },
         data: patch,
         select: {
-          id: true, name: true, slug: true, tier: true, playedAt: true, createdAt: true,
+          id: true, name: true, slug: true, tier: true,
+          beginAt: true, endAt: true, playedAt: true,
+          organizer: true, manager: true,
+          classType: true, state: true, mode: true, adjust: true,
+          overview: true, rules: true, prizes: true,
+          createdAt: true,
           season: { select: { id: true, name: true, year: true, slug: true } },
         },
       });
