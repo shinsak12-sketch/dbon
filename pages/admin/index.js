@@ -1,5 +1,5 @@
 // pages/admin/index.js
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Uploader from "../../components/Uploader";
 import Link from "next/link";
 
@@ -35,10 +35,9 @@ function toLocalInput(iso) {
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
-    // YYYY-MM-DDTHH:MM
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
       .toISOString()
-      .slice(0, 16);
+      .slice(0, 16); // YYYY-MM-DDTHH:MM
   } catch {
     return "";
   }
@@ -128,17 +127,16 @@ export default function Admin() {
     });
   }
 
-  /** 이벤트 목록 로드: DB형/Setting형 모두 호환 */
+  /** 이벤트 목록 로드 */
   async function loadEvents() {
     const data = await safeGetJSON("/api/admin/champ/events", { items: [] });
-    // API가 {items} 또는 배열을 직접 줄 수 있음 → 통합
     const arr = Array.isArray(data)
       ? data
       : Array.isArray(data.items)
       ? data.items
       : [];
 
-    // 필드 이름 통일 (name/ title, org/organizer 등)
+    // 필드 이름 통일
     const norm = arr.map((e) => ({
       id: e.id ?? null,
       organizer: e.organizer ?? e.org ?? "",
@@ -163,11 +161,9 @@ export default function Admin() {
 
   /** 저장(신규/수정) */
   async function saveEvent() {
-    // 서버 구현이 name 또는 title 중 하나만 받을 수 있어 안전하게 둘 다 보냄
     const payload = {
       admin: ADMIN_PASS,
       id: evForm.id ?? undefined,
-      // 네이밍 호환
       name: evForm.name,
       title: evForm.name,
       organizer: evForm.organizer,
@@ -234,6 +230,52 @@ export default function Admin() {
       loadEvents();
     } catch {
       alert("SERVER_ERROR");
+    }
+  }
+
+  // ── ②-1 대회 기록 업로드(공용 파일 입력) ──
+  const fileRef = useRef(null);
+  const [uploadTargetEventId, setUploadTargetEventId] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  function onClickUpload(eventId) {
+    setUploadTargetEventId(eventId);
+    fileRef.current?.click();
+  }
+
+  async function onFileChange(e) {
+    const f = e.target.files?.[0];
+    if (!f || !uploadTargetEventId) {
+      e.target.value = "";
+      return;
+    }
+    try {
+      setUploading(true);
+      const form = new FormData();
+      form.append("file", f);
+
+      const r = await fetch(
+        `/api/admin/champ/events-upload?eventId=${uploadTargetEventId}`,
+        {
+          method: "POST",
+          headers: { "x-admin": ADMIN_PASS },
+          body: form,
+        }
+      );
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        alert(j?.error || "업로드 실패");
+      } else {
+        alert(
+          `업로드 완료\n총 ${j.total}행 · 생성 ${j.created} · 갱신 ${j.updated} · 닉네임매칭 ${j.matched}`
+        );
+      }
+    } catch (err) {
+      alert("SERVER_ERROR");
+    } finally {
+      setUploading(false);
+      setUploadTargetEventId(null);
+      e.target.value = "";
     }
   }
 
@@ -636,6 +678,7 @@ export default function Admin() {
               )}
             </div>
 
+            {/* 이벤트 카드 리스트 + 업로드 버튼 */}
             <div className="border rounded-xl divide-y">
               {events.length === 0 && (
                 <div className="p-4 text-sm text-gray-500">
@@ -660,6 +703,16 @@ export default function Admin() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => onClickUpload(e.id)}
+                      className="rounded-lg bg-emerald-700 text-white px-3 py-2 font-semibold disabled:opacity-60"
+                      disabled={uploading && uploadTargetEventId === e.id}
+                      title="엑셀 점수 업로드"
+                    >
+                      {uploading && uploadTargetEventId === e.id
+                        ? "업로드 중…"
+                        : "업로드"}
+                    </button>
                     <button onClick={() => editEvent(e)} className="btn-outline">
                       수정
                     </button>
@@ -675,6 +728,15 @@ export default function Admin() {
                 </div>
               ))}
             </div>
+
+            {/* 공용 숨김 파일 입력 */}
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={onFileChange}
+            />
           </div>
         )}
       </section>
