@@ -44,15 +44,23 @@ export default function ChampHome() {
             </div>
           </div>
 
-          {/* 카드 내부 버튼만 유지 */}
           <div className="mt-1 flex gap-2">
-            <Link href="/champ/leaderboard/event" className="inline-flex items-center justify-center rounded-xl bg-white text-emerald-800 px-4 py-2 font-bold shadow-sm hover:bg-emerald-50">
-              대회순위
-            </Link>
-            <Link href="/champ/leaderboard/season" className="inline-flex items-center justify-center rounded-xl border border-white/40 px-4 py-2 font-bold text-white hover:bg-white/10">
-              연간순위
-            </Link>
-          </div>
+  {/* 대회순위 → 우리가 만든 /champ/ranking 으로 */}
+  <Link
+    href="/champ/ranking"
+    className="inline-flex items-center justify-center rounded-xl bg-white text-emerald-800 px-4 py-2 font-bold shadow-sm hover:bg-emerald-50"
+  >
+    대회순위
+  </Link>
+
+  {/* 연간순위 → 다음에 만들 페이지로 연결 (임시 경로 /champ/season-ranking) */}
+  <Link
+    href="/champ/season-ranking"
+    className="inline-flex items-center justify-center rounded-xl border border-white/40 px-4 py-2 font-bold text-white hover:bg-white/10"
+  >
+    연간순위
+  </Link>
+</div>
         </div>
       </section>
 
