@@ -51,16 +51,16 @@ export default function Choose() {
           {/* ③ 정보줍줍 */}
           <Link
             href="#"
-            className="group block rounded-2xl border bg-white p-6 shadow-sm hover:shadow-md hover:border-lime-300 transition"
+            className="group block rounded-2xl border bg-white p-6 shadow-sm hover:shadow-md hover:border-emerald-300 transition"
           >
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-lime-800">정보줍줍</h2>
+                <h2 className="text-xl font-bold text-emerald-800">정보줍줍</h2>
                 <p className="mt-1 text-sm text-gray-600">
                   사내 꿀정보 & 자료 모아보기
                 </p>
               </div>
-              <span className="rounded-xl bg-lime-600/10 text-lime-700 px-3 py-1 text-sm font-semibold">
+              <span className="rounded-xl bg-emerald-600/10 text-emerald-700 px-3 py-1 text-sm font-semibold">
                 이동
               </span>
             </div>
@@ -69,16 +69,16 @@ export default function Choose() {
           {/* ④ 디비온 챔피언십 */}
           <Link
             href="/champ"
-            className="group block rounded-2xl border bg-white p-6 shadow-sm hover:shadow-md hover:border-teal-300 transition"
+            className="group block rounded-2xl border bg-white p-6 shadow-sm hover:shadow-md hover:border-emerald-300 transition"
           >
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-teal-800">디비온 챔피언십</h2>
+                <h2 className="text-xl font-bold text-emerald-800">디비온 챔피언십</h2>
                 <p className="mt-1 text-sm text-gray-600">
                   스크린골프 랭킹 및 리그 (준비 중)
                 </p>
               </div>
-              <span className="rounded-xl bg-teal-600/10 text-teal-700 px-3 py-1 text-sm font-semibold">
+              <span className="rounded-xl bg-emerald-600/10 text-emerald-700 px-3 py-1 text-sm font-semibold">
                 이동
               </span>
             </div>
@@ -87,16 +87,16 @@ export default function Choose() {
           {/* ⑤ 직원 경조사 */}
           <Link
             href="#"
-            className="group block rounded-2xl border bg-white p-6 shadow-sm hover:shadow-md hover:border-rose-300 transition"
+            className="group block rounded-2xl border bg-white p-6 shadow-sm hover:shadow-md hover:border-emerald-300 transition"
           >
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-rose-800">직원 경조사</h2>
+                <h2 className="text-xl font-bold text-emerald-800">직원 경조사</h2>
                 <p className="mt-1 text-sm text-gray-600">
                   사내 경조사 소식과 안내
                 </p>
               </div>
-              <span className="rounded-xl bg-rose-600/10 text-rose-700 px-3 py-1 text-sm font-semibold">
+              <span className="rounded-xl bg-emerald-600/10 text-emerald-700 px-3 py-1 text-sm font-semibold">
                 이동
               </span>
             </div>
