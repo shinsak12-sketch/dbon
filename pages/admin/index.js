@@ -731,12 +731,13 @@ export default function Admin() {
 
             {/* 공용 숨김 파일 입력 */}
             <input
-              ref={fileRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={onFileChange}
-            />
+  ref={fileRef}
+  type="file"
+  name="file"                 // ✅ 추가
+  accept=".xlsx,.xls"
+  className="hidden"
+  onChange={onFileChange}
+/>
           </div>
         )}
       </section>
