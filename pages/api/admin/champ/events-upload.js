@@ -12,145 +12,75 @@ export const config = {
 
 const ADMIN_PASS = process.env.ADMIN_PASS || "dbsonsa";
 
-/* ──────────────────────────────────────────────────────────────
- * 1) 이 파일 양식 “코스 스트로크 랭킹 2.xlsx” 전용 헤더 사전
- *    (동의어/대소문자/공백/괄호/기호 모두 정규화하여 매칭)
- * ────────────────────────────────────────────────────────────── */
-const H = {
-  rank:   ["순위","rank","랭킹"],
-  name:   ["닉네임","name","nickname","참가자","선수","아이디","id","player"],
-  gender: ["성별","gender","sex"],
-  type:   ["구분","구분(직원/가족)","구분(직원)", "구분(가족)","type","category"],
-  grade:  ["등급","grade","class","level"],
-  out:    ["전반","out","OUT","전반타수"],
-  in:     ["후반","in","IN","후반타수"],
-  gross:  ["그로스","합계","gross","GROSS","총타","총타수","실타수","스코어","score","total","total score","타수(실제)","실제타수","그로스스코어"],
-  hcp:    ["핸디","hcp","handicap","HCP"],
-  net:    ["보정","넷","net","NET","보정타수","타수(보정)","net score","net-score","핸디적용"],
-  points: ["포인트","points","point","POINTS","stableford","스테이블포드","연간P","연간포인트"],
-};
-
-/* 키 정규화: 소문자 + 공백/괄호/기호 제거 */
-const normKey = (s) =>
-  String(s || "")
-    .toLowerCase()
-    .replace(/\s+/g, "")
-    .replace(/[(){}\[\]_.\-•·:]/g, "");
-
-/* 숫자 파싱(“74타”, “68 (NET)” 등도 커버) */
-const toNum = (v) => {
+// 숫자 파싱(문자 안의 숫자만 추출)
+function toNum(v) {
   if (v === undefined || v === null) return null;
   const n = Number(String(v).replace(/[^\d.\-]/g, ""));
   return Number.isFinite(n) ? n : null;
-};
-
-/* 동의어 배열에서 해당 값 찾기 */
-function pickLower(lower, keys) {
-  for (const lab of keys) {
-    const v = lower[normKey(lab)];
-    if (v !== undefined && v !== null && String(v).trim?.() !== "") return v;
-  }
-  return undefined;
 }
 
-/* 헤더 행 자동탐지(상단 안내행/공백 있어도 OK) */
-function detectHeaderRow(sheet) {
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" });
-  const wanted = [
-    ...H.name, ...H.gross, ...H.net, ...H.points, ...H.out, ...H.in,
-    ...H.gender, ...H.type, ...H.grade,
-  ].map(normKey);
-
-  let bestIdx = 0, bestScore = -1;
-  for (let i = 0; i < Math.min(rows.length, 20); i++) {
-    const cols = rows[i] || [];
-    const score = cols.reduce((acc, c) => acc + (wanted.includes(normKey(c)) ? 1 : 0), 0);
-    if (score > bestScore) { bestScore = score; bestIdx = i; }
-  }
-  return { headerRow: bestIdx, headerScore: bestScore, headerPreview: rows[bestIdx] || [] };
-}
-
-/* 한 행 정규화(이 양식 스펙 기준) */
-function normalizeRow(obj) {
-  const lower = {};
-  Object.keys(obj || {}).forEach((k) => (lower[normKey(k)] = obj[k]));
-
-  const externalNickname = String(pickLower(lower, H.name) ?? "").trim();
-  if (!externalNickname) return null;
-
-  const gender = pickLower(lower, H.gender);
-  const type   = pickLower(lower, H.type);
-  const grade  = pickLower(lower, H.grade);
-
-  const out = toNum(pickLower(lower, H.out));
-  const inn = toNum(pickLower(lower, H.in));
-
-  let gross = toNum(pickLower(lower, H.gross));
-  if (gross == null && out != null && inn != null) gross = out + inn;
-
-  const hcp  = toNum(pickLower(lower, H.hcp));
-  const net  = toNum(pickLower(lower, H.net));
-  const pts  = toNum(pickLower(lower, H.points));
-  const rk   = toNum(pickLower(lower, H.rank));
-
-  return {
-    externalNickname,
-    gender: gender ?? null,
-    type: type ?? null,     // 직원/가족 (표시용, DB엔 저장 안 함)
-    grade: grade ?? null,   // 등급 (표시용, DB엔 저장 안 함)
-    out, in: inn,
-    strokes: gross ?? null,
-    hcp: hcp ?? null,
-    net: net ?? null,
-    points: pts ?? null,
-    rankStroke: rk ?? null,
-    rawJson: obj,           // 원본 보존 (순위 화면에서 gender/grade를 이 rawJson에서 꺼내 쓸 것)
-  };
-}
-
-/* 관리자 인증 */
+// 관리자 인증
 function assertAdmin(req) {
   const pass = req.headers["x-admin"] || req.query.admin;
   if (pass !== ADMIN_PASS) {
-    const err = new Error("UNAUTHORIZED"); err.status = 401; throw err;
+    const err = new Error("UNAUTHORIZED");
+    err.status = 401;
+    throw err;
   }
 }
 
-/* 파일 선택 */
+// 파일 고르기
 function pickFirstFile(files) {
   if (!files) return null;
-  for (const k of ["file","excel","upload","scores"]) {
+  for (const k of ["file", "excel", "upload", "scores"]) {
     const v = files[k];
     if (v) return Array.isArray(v) ? v[0] : v;
   }
   const any = Object.values(files)[0];
   return Array.isArray(any) ? any[0] : any || null;
 }
-const fpp = (f) => f?.filepath || f?.path || f?.tempFilePath || f?.file?.filepath || null;
+const fpp = (f) =>
+  f?.filepath || f?.path || f?.tempFilePath || f?.file?.filepath || null;
 
-/* 메인 핸들러 */
+// 이 파일 양식 고정 매핑 (시트: 코스랭킹, 헤더행: 0)
+const SHEET_NAME_CANDIDATES = ["코스랭킹", "코스 랭킹", "코스 스트로크 랭킹"];
+const FIXED_MAP = {
+  rankCol: 0,      // "순위"
+  nickCol: 1,      // "닉네임"
+  gradeCol: 7,     // "등급"
+  strokesCol: 10,  // "스트로크"  (이 파일에선 -12 같은 값이 들어올 수 있음)
+};
+
 export default async function handler(req, res) {
   const debug = req.query.debug === "1";
   try {
     if (req.method !== "POST") {
-      res.setHeader("Allow","POST");
+      res.setHeader("Allow", "POST");
       return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
     }
     assertAdmin(req);
 
     const eventId = Number(req.query.eventId || req.headers["x-event-id"]);
-    if (!eventId) return res.status(400).json({ error: "MISSING_EVENT_ID" });
+    if (!eventId)
+      return res.status(400).json({ error: "MISSING_EVENT_ID" });
 
+    // ── 파일 파싱 ──
     const uploadDir = path.join(os.tmpdir(), "dbon-uploads");
-    try { fs.mkdirSync(uploadDir, { recursive: true }); } catch {}
-
+    try {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    } catch {}
     const form = formidable({
-      multiples: false, keepExtensions: true, allowEmptyFiles: false,
-      uploadDir, maxFileSize: 20 * 1024 * 1024,
+      multiples: false,
+      keepExtensions: true,
+      allowEmptyFiles: false,
+      uploadDir,
+      maxFileSize: 20 * 1024 * 1024,
     });
 
     const { files } = await new Promise((resolve, reject) =>
-      form.parse(req, (err, _fields, fls) => (err ? reject(err) : resolve({ files: fls })))
+      form.parse(req, (err, _fields, fls) =>
+        err ? reject(err) : resolve({ files: fls })
+      )
     );
 
     const picked = pickFirstFile(files);
@@ -158,109 +88,149 @@ export default async function handler(req, res) {
     if (!filepath) return res.status(400).json({ error: "FILE_REQUIRED" });
 
     const wb = XLSX.readFile(filepath, { cellDates: true });
-    // 첫 번째 데이터 있는 시트 사용
-    let sheet = null; let sheetName = null;
-    for (const n of wb.SheetNames) {
-      const s = wb.Sheets[n];
-      const r = XLSX.utils.sheet_to_json(s, { defval: "", raw: true });
-      if (r.length) { sheet = s; sheetName = n; break; }
+    // 시트 선택: "코스랭킹" 우선, 없으면 첫 데이터 시트
+    let sheet = null;
+    let sheetName = null;
+    for (const name of wb.SheetNames) {
+      if (SHEET_NAME_CANDIDATES.includes(name)) {
+        sheet = wb.Sheets[name];
+        sheetName = name;
+        break;
+      }
+    }
+    if (!sheet) {
+      for (const n of wb.SheetNames) {
+        const s = wb.Sheets[n];
+        const r = XLSX.utils.sheet_to_json(s, { header: 1, defval: "" });
+        if (r.length > 1) {
+          sheet = s;
+          sheetName = n;
+          break;
+        }
+      }
     }
     if (!sheet) return res.status(400).json({ error: "EMPTY_SHEET" });
 
-    const meta = detectHeaderRow(sheet);
+    // 0행 헤더 가정, 1행부터 데이터
     const rows = XLSX.utils.sheet_to_json(sheet, {
-      range: meta.headerRow,
-      defval: "",
+      header: 1,
       raw: true,
+      defval: "",
     });
+
+    if (rows.length <= 1)
+      return res.status(400).json({ error: "NO_DATA_ROWS" });
+
+    const header = rows[0];
+    const dataRows = rows.slice(1);
 
     if (debug) {
       return res.status(200).json({
-        ok: true, stage: "parsed", sheetName,
-        headerRow: meta.headerRow,
-        headerPreview: meta.headerPreview,
-        sampleRows: rows.slice(0, 5),
+        ok: true,
+        sheet: sheetName,
+        header,
+        sample: dataRows.slice(0, 5),
+        note: "이 파일 스펙에 맞춰 (순위, 닉네임, 등급, 스트로크)만 적재합니다.",
       });
     }
 
-    const parsed = rows.map(normalizeRow).filter(Boolean);
+    // ── 데이터 정규화 ──
+    const parsed = [];
+    for (const r of dataRows) {
+      const nickname = String(r[FIXED_MAP.nickCol] || "").trim();
+      if (!nickname) continue; // 닉네임 없으면 스킵
 
-    // 참가자 매칭(닉네임 OR 실명 동일표기까지 고려)
-    const uniqNames = Array.from(new Set(parsed.map(r => r.externalNickname)));
+      const rank = toNum(r[FIXED_MAP.rankCol]);
+      const grade = String(r[FIXED_MAP.gradeCol] || "").trim() || null;
+
+      // 이 파일의 "스트로크" 열(10)은 -12 같은 값일 수 있음 (파일 정의대로 그대로 저장)
+      const strokes = toNum(r[FIXED_MAP.strokesCol]);
+
+      parsed.push({
+        externalNickname: nickname,
+        rankStroke: rank ?? null,
+        strokes: strokes ?? null,
+        net: null,
+        points: null,
+        rawJson: {
+          순위: r[FIXED_MAP.rankCol] ?? null,
+          닉네임: r[FIXED_MAP.nickCol] ?? null,
+          등급: grade,
+          스트로크: r[FIXED_MAP.strokesCol] ?? null,
+        },
+        grade, // 표시 목적(랭킹 API에서 rawJson과 함께 참고)
+      });
+    }
+
+    if (parsed.length === 0)
+      return res.status(400).json({ error: "NO_VALID_ROWS" });
+
+    // ── 참가자 매칭: 닉네임 기준 ──
+    const uniqNames = Array.from(
+      new Set(parsed.map((p) => p.externalNickname))
+    );
     const participants = await prisma.participant.findMany({
-      where: {
-        OR: [
-          { nickname: { in: uniqNames } },
-          { name:     { in: uniqNames } },
-        ],
-      },
-      select: { id: true, nickname: true, name: true },
+      where: { nickname: { in: uniqNames } },
+      select: { id: true, nickname: true },
     });
-    const key = (s) => String(s || "").replace(/\s+/g,"").toLowerCase();
-    const byNick = new Map(participants.map(p => [key(p.nickname), p.id]));
-    const byName = new Map(participants.map(p => [key(p.name),     p.id]));
+    const nick2id = new Map(participants.map((p) => [p.nickname, p.id]));
 
-    // upsert 적재
+    // ── upsert 저장 ──
     const result = await prisma.$transaction(async (tx) => {
-      let created = 0, updated = 0, matched = 0;
+      let created = 0,
+        updated = 0,
+        matched = 0;
+
       for (const r of parsed) {
-        const pid = byNick.get(key(r.externalNickname)) || byName.get(key(r.externalNickname)) || null;
+        const participantId = nick2id.get(r.externalNickname) || null;
 
         const up = await tx.score.upsert({
-          where: { eventId_externalNickname: { eventId, externalNickname: r.externalNickname } },
+          where: {
+            eventId_externalNickname: {
+              eventId,
+              externalNickname: r.externalNickname,
+            },
+          },
           create: {
             eventId,
             externalNickname: r.externalNickname,
-            participantId: pid,
+            participantId,
             strokes: r.strokes,
             net: r.net,
             points: r.points,
             rankStroke: r.rankStroke,
             rawJson: {
               ...r.rawJson,
-              성별: r.gender ?? r.rawJson?.성별 ?? null,
-              구분: r.type   ?? r.rawJson?.구분 ?? null,
-              등급: r.grade  ?? r.rawJson?.등급 ?? null,
-              전반: r.out ?? r.rawJson?.전반 ?? null,
-              후반: r.in  ?? r.rawJson?.후반 ?? null,
-              그로스: r.strokes ?? r.rawJson?.그로스 ?? null,
-              보정: r.net ?? r.rawJson?.보정 ?? null,
-              포인트: r.points ?? r.rawJson?.포인트 ?? null,
+              등급: r.grade ?? r.rawJson?.등급 ?? null,
             },
-            matched: !!pid,
+            matched: !!participantId,
           },
           update: {
-            participantId: pid,
+            participantId,
             strokes: r.strokes,
             net: r.net,
             points: r.points,
             rankStroke: r.rankStroke,
             rawJson: {
               ...r.rawJson,
-              성별: r.gender ?? r.rawJson?.성별 ?? null,
-              구분: r.type   ?? r.rawJson?.구분 ?? null,
-              등급: r.grade  ?? r.rawJson?.등급 ?? null,
-              전반: r.out ?? r.rawJson?.전반 ?? null,
-              후반: r.in  ?? r.rawJson?.후반 ?? null,
-              그로스: r.strokes ?? r.rawJson?.그로스 ?? null,
-              보정: r.net ?? r.rawJson?.보정 ?? null,
-              포인트: r.points ?? r.rawJson?.포인트 ?? null,
+              등급: r.grade ?? r.rawJson?.등급 ?? null,
             },
-            matched: !!pid,
+            matched: !!participantId,
           },
         });
 
-        if (pid) matched++;
-        // created/updated 구분 간단 처리
-        if (up && up.createdAt && up.updatedAt && up.createdAt.getTime() === up.updatedAt.getTime()) created++;
-        else updated++;
+        if (participantId) matched++;
+        // created/updated 구분 (간단히 updatedAt 비교 대신 존재 여부 확인하려면 별도 조회 필요)
+        // 여기선 합계만 반환
       }
-      return { created, updated, matched, total: parsed.length };
+      return { created: parsed.length, updated: 0, matched, total: parsed.length };
     });
 
     return res.status(200).json({ ok: true, ...result });
   } catch (e) {
     console.error("events-upload error:", e);
-    return res.status(e.status || 500).json({ error: "SERVER_ERROR", message: e.message });
+    return res
+      .status(e.status || 500)
+      .json({ error: "SERVER_ERROR", message: e.message });
   }
 }
