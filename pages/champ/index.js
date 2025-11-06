@@ -5,13 +5,35 @@ import Link from "next/link";
 const fetcher = (url) => fetch(url).then((r) => r.json());
 
 export default function ChampHome() {
-  const { data, error, isLoading } = useSWR("/api/champ/home", fetcher, { revalidateOnFocus: false });
+  const { data, error, isLoading } = useSWR(
+    "/api/champ/home",
+    fetcher,
+    { revalidateOnFocus: false }
+  );
   const ev = data?.currentEvent || null;
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6 space-y-8">
-      {isLoading && <div className="rounded-2xl border bg-white p-6 text-gray-600">불러오는 중…</div>}
-      {error && <div className="rounded-2xl border bg-white p-6 text-rose-600">데이터를 불러오지 못했습니다.</div>}
+      {isLoading && (
+        <div className="rounded-2xl border bg-white p-6 text-gray-600">
+          불러오는 중…
+        </div>
+      )}
+      {error && (
+        <div className="rounded-2xl border bg-white p-6 text-rose-600">
+          데이터를 불러오지 못했습니다.
+        </div>
+      )}
+
+      {/* 선택으로 버튼 (서비스 선택 화면으로) */}
+      <div className="flex justify-end">
+        <Link
+          href="/choose"
+          className="inline-flex items-center rounded-full border bg-white px-3 py-1 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+        >
+          ← 선택으로
+        </Link>
+      </div>
 
       {/* 히어로 카드 */}
       <section className="rounded-3xl border bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-emerald-600 via-emerald-600 to-emerald-700 p-5 sm:p-6 text-white shadow-sm">
@@ -28,7 +50,9 @@ export default function ChampHome() {
 
             <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
               <div className="text-white/80 text-sm">일정</div>
-              <div className="mt-1 font-semibold">{ev?.schedule || "일정 미정"}</div>
+              <div className="mt-1 font-semibold">
+                {ev?.schedule || "일정 미정"}
+              </div>
             </div>
 
             <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
@@ -40,57 +64,62 @@ export default function ChampHome() {
 
             <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
               <div className="text-white/80 text-sm">상품/비고</div>
-              <div className="mt-1 font-semibold">{(ev?.overview || "").trim() || "공개 예정"}</div>
+              <div className="mt-1 font-semibold">
+                {(ev?.overview || "").trim() || "공개 예정"}
+              </div>
             </div>
           </div>
 
+          {/* 대회순위 / 연간순위 버튼 */}
           <div className="mt-1 flex gap-2">
-  {/* 대회순위 → 우리가 만든 /champ/ranking 으로 */}
-  <Link
-    href="/champ/ranking"
-    className="inline-flex items-center justify-center rounded-xl bg-white text-emerald-800 px-4 py-2 font-bold shadow-sm hover:bg-emerald-50"
-  >
-    대회순위
-  </Link>
-
-  {/* 연간순위 → 다음에 만들 페이지로 연결 (임시 경로 /champ/season-ranking) */}
-  <Link
-    href="/champ/season-ranking"
-    className="inline-flex items-center justify-center rounded-xl border border-white/40 px-4 py-2 font-bold text-white hover:bg-white/10"
-  >
-    연간순위
-  </Link>
-</div>
+            <Link
+              href="/champ/ranking"
+              className="inline-flex items-center justify-center rounded-xl bg-white text-emerald-800 px-4 py-2 font-bold shadow-sm hover:bg-emerald-50"
+            >
+              대회순위
+            </Link>
+            <Link
+              href="/champ/season-ranking"
+              className="inline-flex items-center justify-center rounded-xl border border-white/40 px-4 py-2 font-bold text-white hover:bg-white/10"
+            >
+              연간순위
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* 공지사항 */}
-<section className="rounded-2xl border bg-white p-6">
-  <div className="mb-4 flex items-center justify-between">
-    <h3 className="text-xl font-bold">공지사항</h3>
-    <Link href="/champ/notice" className="text-sm text-emerald-700 hover:underline">
-      더보기 →
-    </Link>
-  </div>
+      <section className="rounded-2xl border bg-white p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-xl font-bold">공지사항</h3>
+          <Link
+            href="/champ/notice"
+            className="text-sm text-emerald-700 hover:underline"
+          >
+            더보기 →
+          </Link>
+        </div>
 
-  {Array.isArray(data?.notices) && data.notices.length ? (
-    <ul className="space-y-3">
-      {data.notices.map((n) => (
-        <li key={n.id} className="text-sm">
-          <div className="font-medium mb-0.5">{n.title}</div>
-          <div className="text-gray-700 whitespace-pre-wrap">{n.content}</div>
-          {n.createdAt && (
-            <div className="text-xs text-gray-400 mt-1">
-              {new Date(n.createdAt).toLocaleDateString("ko-KR")}
-            </div>
-          )}
-        </li>
-      ))}
-    </ul>
-  ) : (
-    <p className="text-sm text-gray-500">공지사항이 없습니다.</p>
-  )}
-</section>
+        {Array.isArray(data?.notices) && data.notices.length ? (
+          <ul className="space-y-3">
+            {data.notices.map((n) => (
+              <li key={n.id} className="text-sm">
+                <div className="font-medium mb-0.5">{n.title}</div>
+                <div className="text-gray-700 whitespace-pre-wrap">
+                  {n.content}
+                </div>
+                {n.createdAt && (
+                  <div className="text-xs text-gray-400 mt-1">
+                    {new Date(n.createdAt).toLocaleDateString("ko-KR")}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-gray-500">공지사항이 없습니다.</p>
+        )}
+      </section>
     </main>
   );
 }
