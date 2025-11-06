@@ -18,7 +18,7 @@ export default function Header() {
       router.push(`/search?q=${encodeURIComponent(query)}`);
     }
   };
-
+ 
   return (
     <header className="bg-emerald-700 text-white px-4 py-3 flex items-center justify-between">
       {/* 왼쪽 로고 */}
