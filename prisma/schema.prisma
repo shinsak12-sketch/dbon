@@ -41,10 +41,10 @@ model Review {
   rating    Float
   content   String
   author    String?
-  imageUrl   String?
-  imageUrls  String[] @default([])
+  imageUrl  String?
+  imageUrls String[] @default([])
   pin       String?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 }
 
 model Setting {
@@ -74,18 +74,18 @@ model Event {
   name        String
   slug        String         @unique
   roundNo     String?
-  organizer   String?        
-  manager     String?        
-  beginAt     DateTime?      
-  endAt       DateTime?      
-  playedAt    DateTime?      
+  organizer   String?
+  manager     String?
+  beginAt     DateTime?
+  endAt       DateTime?
+  playedAt    DateTime?
   classType   EventClassType @default(OPEN)
   state       EventState     @default(OVERVIEW)
   mode        EventMode      @default(STROKE)
   adjust      ScoreAdjust    @default(NONE)
   tier        Int            @default(100)
   overview    String?        @db.Text
-  rules       String?        @db.Text   
+  rules       String?        @db.Text
   prizes      String?        @db.Text
   season      Season         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   scores      Score[]
@@ -196,4 +196,20 @@ enum ParticipantType {
   STAFF
   EMPLOYEE
   FAMILY
+}
+
+//// ─────────────────────────────
+///  디비온스타그램 (사내 피드)
+//// ─────────────────────────────
+
+model StagramPost {
+  id            Int       @id @default(autoincrement())
+  authorName    String?   // 작성자 이름 (선택)
+  authorDept    String?   // 소속/부서 (선택, 그냥 텍스트)
+  content       String?   @db.Text // 본문
+  imageUrls     String[]  @default([]) // 첨부 이미지 URL 목록
+  likes         Int       @default(0)  // 좋아요 수 (집계)
+  commentsCount Int       @default(0)  // 댓글 수 (집계)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
