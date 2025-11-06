@@ -57,58 +57,58 @@ export default function MyApp({ Component, pageProps }) {
           )}
 
           {/* 챔피언십 헤더 */}
-          {isChamp && (
-            <header className="sticky top-0 z-40 bg-emerald-800 text-white">
-              <div className="mx-auto max-w-4xl px-4 py-3">
-                {/* 첫 줄: 타이틀 + 시즌 */}
-                <div className="flex items-center gap-2">
-                  {/* 🔽 여기 span 대신 Link 로 변경 */}
-                  <Link
-                    href="/champ"
-                    className="font-extrabold text-lg flex-1 hover:opacity-80 transition"
-                  >
-                    DB ON Championship 🏌️
-                  </Link>
+{isChamp && (
+  <header className="sticky top-0 z-40 bg-emerald-900 text-white shadow-md">
+    <div className="mx-auto max-w-4xl px-4 py-3">
+      {/* 첫 줄: 타이틀 + 시즌 */}
+      <div className="flex items-center gap-2">
+        {/* 로고 */}
+        <Link
+          href="/champ"
+          className="font-extrabold text-lg flex-1 hover:opacity-90 transition"
+        >
+          DB ON Championship 🏌️
+        </Link>
 
-                  <span className="hidden sm:inline text-xs text-white/80">
-                    {CHAMPIONSHIP_SEASON}
-                  </span>
+        <span className="hidden sm:inline text-sm text-white/90">
+          {CHAMPIONSHIP_SEASON}
+        </span>
 
-                  {/* 데스크탑 버튼 */}
-                  <div className="hidden sm:flex items-center gap-2">
-                    <Link
-                      href="/champ/me"
-                      className="rounded-md bg-white text-emerald-800 px-3 py-2 font-semibold hover:bg-gray-100 border border-white/20"
-                    >
-                      내정보
-                    </Link>
-                    <Link
-                      href="/register"
-                      className="rounded-md bg-yellow-400 text-black px-3 py-2 font-semibold hover:bg-yellow-300"
-                    >
-                      선수등록
-                    </Link>
-                  </div>
-                </div>
+        {/* 데스크탑 버튼 */}
+        <div className="hidden sm:flex items-center gap-2">
+          <Link
+            href="/champ/me"
+            className="rounded-md bg-white text-emerald-900 px-3 py-2 font-semibold hover:bg-gray-100 border border-white/30"
+          >
+            내정보
+          </Link>
+          <Link
+            href="/register"
+            className="rounded-md bg-yellow-400 text-black px-3 py-2 font-semibold hover:bg-yellow-300 shadow-sm"
+          >
+            선수등록
+          </Link>
+        </div>
+      </div>
 
-                {/* 모바일 버튼: 한 줄 아래로 */}
-                <div className="mt-2 flex sm:hidden items-center gap-2">
-                  <Link
-                    href="/champ/me"
-                    className="flex-1 rounded-md bg-white text-emerald-800 px-3 py-2 font-semibold text-center hover:bg-gray-100 border border-white/30"
-                  >
-                    내정보
-                  </Link>
-                  <Link
-                    href="/register"
-                    className="flex-1 rounded-md bg-yellow-400 text-black px-3 py-2 font-semibold text-center hover:bg-yellow-300"
-                  >
-                    선수등록
-                  </Link>
-                </div>
-              </div>
-            </header>
-          )}
+      {/* 모바일 버튼 */}
+      <div className="mt-2 flex sm:hidden items-center gap-2">
+        <Link
+          href="/champ/me"
+          className="flex-1 rounded-md bg-white text-emerald-900 px-3 py-2 font-semibold text-center hover:bg-gray-100 border border-white/30"
+        >
+          내정보
+        </Link>
+        <Link
+          href="/register"
+          className="flex-1 rounded-md bg-yellow-400 text-black px-3 py-2 font-semibold text-center hover:bg-yellow-300 shadow-sm"
+        >
+          선수등록
+        </Link>
+      </div>
+    </div>
+  </header>
+)}
         </>
       )}
 
