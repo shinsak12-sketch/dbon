@@ -12,6 +12,22 @@ export const config = {
 
 const ADMIN_PASS = process.env.ADMIN_PASS || "dbsonsa";
 
+// 🔢 기본 포인트 규칙 (관리자 화면과 동일한 기본값)
+const DEFAULT_POINT_RULES = {
+  // 순위 1~10 기본 점수
+  base: [30, 20, 15, 12, 10, 8, 6, 4, 2, 1],
+  // 티어 보정(퍼센트 개념: 120 = 120%, 100 = 100%, 80 = 80%)
+  tier: { 120: 120, 100: 100, 80: 80 },
+};
+
+function calcPoints(rank, tier) {
+  if (!rank || rank < 1) return 0;
+  const base = DEFAULT_POINT_RULES.base[rank - 1] || 0;
+  const t = DEFAULT_POINT_RULES.tier[tier] || 100;
+  // 30점 * 120 / 100 = 36 이런 식
+  return Math.round((base * t) / 100);
+}
+
 // 숫자 파싱(문자 안의 숫자만 추출)
 function toNum(v) {
   if (v === undefined || v === null) return null;
@@ -47,7 +63,6 @@ const SHEET_NAME_CANDIDATES = ["코스랭킹", "코스 랭킹", "코스 스트�
 
 export default async function handler(req, res) {
   const debug = req.query.debug === "1";
-
   try {
     if (req.method !== "POST") {
       res.setHeader("Allow", "POST");
@@ -56,16 +71,22 @@ export default async function handler(req, res) {
     assertAdmin(req);
 
     const eventId = Number(req.query.eventId || req.headers["x-event-id"]);
-    if (!eventId) {
+    if (!eventId)
       return res.status(400).json({ error: "MISSING_EVENT_ID" });
-    }
+
+    // 🔎 이벤트 정보(티어) 읽기
+    const ev = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, tier: true },
+    });
+    if (!ev) return res.status(404).json({ error: "EVENT_NOT_FOUND" });
+    const eventTier = ev.tier || 100;
 
     // ── 파일 파싱 ──
     const uploadDir = path.join(os.tmpdir(), "dbon-uploads");
     try {
       fs.mkdirSync(uploadDir, { recursive: true });
     } catch {}
-
     const form = formidable({
       multiples: false,
       keepExtensions: true,
@@ -85,8 +106,7 @@ export default async function handler(req, res) {
     if (!filepath) return res.status(400).json({ error: "FILE_REQUIRED" });
 
     const wb = XLSX.readFile(filepath, { cellDates: true });
-
-    // 시트 선택: "코스랭킹" 우선, 없으면 첫 번째로 데이터 있는 시트
+    // 시트 선택: "코스랭킹" 우선, 없으면 첫 데이터 시트
     let sheet = null;
     let sheetName = null;
     for (const name of wb.SheetNames) {
@@ -113,7 +133,7 @@ export default async function handler(req, res) {
     const rows = XLSX.utils.sheet_to_json(sheet, {
       defval: "",
       raw: true,
-    }); // 예시: { "홀":"F", "1홀":"-1", ..., "등급":"독수리 휴면", "성별":"M", "순위":"1", "닉네임":"오늘도뽈구자", "스트로크":"-12", "최종성적":"-12" }
+    });
 
     if (!rows.length)
       return res.status(400).json({ error: "NO_DATA_ROWS" });
@@ -138,16 +158,19 @@ export default async function handler(req, res) {
       const gender = String(row["성별"] || "").trim() || null;
       const grade = String(row["등급"] || "").trim() || null;
 
-      // 이 파일에는 "스트로크"와 "최종성적" 둘 다 -12 같은 언더파 값이 들어 있음
+      // 이 파일에는 "최종성적"과 "스트로크"에 언더파(-12 등)가 들어 있음
       const strokes =
         toNum(row["최종성적"]) ?? toNum(row["스트로크"]) ?? null;
+
+      // 👉 여기서 순위 + 티어로 포인트 계산
+      const points = calcPoints(rank, eventTier);
 
       parsed.push({
         externalNickname: nickname,
         rankStroke: rank ?? null,
         strokes,
+        points,
         net: null,
-        points: null,
         gender,
         grade,
         rawJson: row, // 전체를 그대로 보존
@@ -186,22 +209,25 @@ export default async function handler(req, res) {
           select: { id: true },
         });
 
+        const data = {
+          participantId,
+          strokes: r.strokes,
+          net: null,
+          points: r.points,
+          rankStroke: r.rankStroke,
+          rawJson: {
+            ...r.rawJson,
+            성별: r.gender ?? r.rawJson?.성별 ?? null,
+            등급: r.grade ?? r.rawJson?.등급 ?? null,
+            포인트: r.points ?? r.rawJson?.포인트 ?? null,
+          },
+          matched: !!participantId,
+        };
+
         if (existing) {
           await tx.score.update({
             where: { id: existing.id },
-            data: {
-              participantId,
-              strokes: r.strokes,
-              net: null,
-              points: null,
-              rankStroke: r.rankStroke,
-              rawJson: {
-                ...r.rawJson,
-                성별: r.gender ?? r.rawJson?.성별 ?? null,
-                등급: r.grade ?? r.rawJson?.등급 ?? null,
-              },
-              matched: !!participantId,
-            },
+            data,
           });
           updated++;
         } else {
@@ -209,17 +235,7 @@ export default async function handler(req, res) {
             data: {
               eventId,
               externalNickname: r.externalNickname,
-              participantId,
-              strokes: r.strokes,
-              net: null,
-              points: null,
-              rankStroke: r.rankStroke,
-              rawJson: {
-                ...r.rawJson,
-                성별: r.gender ?? r.rawJson?.성별 ?? null,
-                등급: r.grade ?? r.rawJson?.등급 ?? null,
-              },
-              matched: !!participantId,
+              ...data,
             },
           });
           created++;
