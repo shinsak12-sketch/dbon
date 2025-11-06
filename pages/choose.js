@@ -12,16 +12,18 @@ export default function Choose() {
         </header>
 
         <div className="mt-10 grid gap-4">
-          {/* ① 부서소식 */}
+          {/* ① 디비온스타그램 */}
           <Link
-            href="#"
+            href="/stagram"
             className="group block rounded-2xl border bg-white p-6 shadow-sm hover:shadow-md hover:border-emerald-300 transition"
           >
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-emerald-800">부서소식</h2>
+                <h2 className="text-xl font-bold text-emerald-800">
+                  디비온스타그램
+                </h2>
                 <p className="mt-1 text-sm text-gray-600">
-                  부서별 공지 및 업데이트
+                  사내 일상과 소식을 공유하는 피드
                 </p>
               </div>
               <span className="rounded-xl bg-emerald-600/10 text-emerald-700 px-3 py-1 text-sm font-semibold">
@@ -73,9 +75,11 @@ export default function Choose() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-emerald-800">디비온 챔피언십</h2>
+                <h2 className="text-xl font-bold text-emerald-800">
+                  디비온 챔피언십
+                </h2>
                 <p className="mt-1 text-sm text-gray-600">
-                  스크린골프 랭킹 및 리그 (준비 중)
+                  스크린골프 랭킹 및 리그
                 </p>
               </div>
               <span className="rounded-xl bg-emerald-600/10 text-emerald-700 px-3 py-1 text-sm font-semibold">
@@ -91,7 +95,9 @@ export default function Choose() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-emerald-800">직원 경조사</h2>
+                <h2 className="text-xl font-bold text-emerald-800">
+                  직원 경조사
+                </h2>
                 <p className="mt-1 text-sm text-gray-600">
                   사내 경조사 소식과 안내
                 </p>
