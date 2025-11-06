@@ -36,12 +36,12 @@ export default function SeasonRankingPage() {
 
   const years = data?.years || [];
   const summary =
-    data?.summary || ({
+    data?.summary || {
       totalPlayers: 0,
       totalRounds: 0,
       avgRounds: 0,
       avgPoints: 0,
-    } as any);
+    };
 
   const processedItems = useMemo(() => {
     let items = data?.items || [];
