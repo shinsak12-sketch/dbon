@@ -31,7 +31,10 @@ export default function MyApp({ Component, pageProps }) {
           {isDBOn && (
             <header className="sticky top-0 z-40 bg-emerald-800 text-white">
               <div className="mx-auto max-w-3xl px-4 py-3 flex items-center gap-3">
-                <Link href="/choose" className="font-extrabold text-xl whitespace-nowrap">
+                <Link
+                  href="/choose"
+                  className="font-extrabold text-xl whitespace-nowrap"
+                >
                   DB ON
                 </Link>
                 <div className="flex-1 flex items-center gap-2">
@@ -59,9 +62,14 @@ export default function MyApp({ Component, pageProps }) {
               <div className="mx-auto max-w-4xl px-4 py-3">
                 {/* 첫 줄: 타이틀 + 시즌 */}
                 <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-lg flex-1">
+                  {/* 🔽 여기 span 대신 Link 로 변경 */}
+                  <Link
+                    href="/champ"
+                    className="font-extrabold text-lg flex-1 hover:opacity-80 transition"
+                  >
                     DB ON Championship 🏌️
-                  </span>
+                  </Link>
+
                   <span className="hidden sm:inline text-xs text-white/80">
                     {CHAMPIONSHIP_SEASON}
                   </span>
