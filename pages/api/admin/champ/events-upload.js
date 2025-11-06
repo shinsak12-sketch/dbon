@@ -42,17 +42,12 @@ function pickFirstFile(files) {
 const fpp = (f) =>
   f?.filepath || f?.path || f?.tempFilePath || f?.file?.filepath || null;
 
-// 이 파일 양식 고정 매핑 (시트: 코스랭킹, 헤더행: 0)
+// 코스 랭킹 시트 후보 이름
 const SHEET_NAME_CANDIDATES = ["코스랭킹", "코스 랭킹", "코스 스트로크 랭킹"];
-const FIXED_MAP = {
-  rankCol: 0,      // "순위"
-  nickCol: 1,      // "닉네임"
-  gradeCol: 7,     // "등급"
-  strokesCol: 10,  // "스트로크"  (이 파일에선 -12 같은 값이 들어올 수 있음)
-};
 
 export default async function handler(req, res) {
   const debug = req.query.debug === "1";
+
   try {
     if (req.method !== "POST") {
       res.setHeader("Allow", "POST");
@@ -61,14 +56,16 @@ export default async function handler(req, res) {
     assertAdmin(req);
 
     const eventId = Number(req.query.eventId || req.headers["x-event-id"]);
-    if (!eventId)
+    if (!eventId) {
       return res.status(400).json({ error: "MISSING_EVENT_ID" });
+    }
 
     // ── 파일 파싱 ──
     const uploadDir = path.join(os.tmpdir(), "dbon-uploads");
     try {
       fs.mkdirSync(uploadDir, { recursive: true });
     } catch {}
+
     const form = formidable({
       multiples: false,
       keepExtensions: true,
@@ -88,7 +85,8 @@ export default async function handler(req, res) {
     if (!filepath) return res.status(400).json({ error: "FILE_REQUIRED" });
 
     const wb = XLSX.readFile(filepath, { cellDates: true });
-    // 시트 선택: "코스랭킹" 우선, 없으면 첫 데이터 시트
+
+    // 시트 선택: "코스랭킹" 우선, 없으면 첫 번째로 데이터 있는 시트
     let sheet = null;
     let sheetName = null;
     for (const name of wb.SheetNames) {
@@ -111,58 +109,52 @@ export default async function handler(req, res) {
     }
     if (!sheet) return res.status(400).json({ error: "EMPTY_SHEET" });
 
-    // 0행 헤더 가정, 1행부터 데이터
+    // 🔥 헤더 기반 파싱: 0행을 헤더로 쓰는 객체 배열
     const rows = XLSX.utils.sheet_to_json(sheet, {
-      header: 1,
-      raw: true,
       defval: "",
-    });
+      raw: true,
+    }); // 예시: { "홀":"F", "1홀":"-1", ..., "등급":"독수리 휴면", "성별":"M", "순위":"1", "닉네임":"오늘도뽈구자", "스트로크":"-12", "최종성적":"-12" }
 
-    if (rows.length <= 1)
+    if (!rows.length)
       return res.status(400).json({ error: "NO_DATA_ROWS" });
-
-    const header = rows[0];
-    const dataRows = rows.slice(1);
 
     if (debug) {
       return res.status(200).json({
         ok: true,
         sheet: sheetName,
-        header,
-        sample: dataRows.slice(0, 5),
-        note: "이 파일 스펙에 맞춰 (순위, 닉네임, 등급, 스트로크)만 적재합니다.",
+        sample: rows.slice(0, 5),
+        note:
+          "헤더 이름(닉네임/성별/등급/순위/스트로크/최종성적) 기준으로 파싱합니다.",
       });
     }
 
     // ── 데이터 정규화 ──
     const parsed = [];
-    for (const r of dataRows) {
-      const nickname = String(r[FIXED_MAP.nickCol] || "").trim();
+    for (const row of rows) {
+      const nickname = String(row["닉네임"] || "").trim();
       if (!nickname) continue; // 닉네임 없으면 스킵
 
-      const rank = toNum(r[FIXED_MAP.rankCol]);
-      const grade = String(r[FIXED_MAP.gradeCol] || "").trim() || null;
+      const rank = toNum(row["순위"]);
+      const gender = String(row["성별"] || "").trim() || null;
+      const grade = String(row["등급"] || "").trim() || null;
 
-      // 이 파일의 "스트로크" 열(10)은 -12 같은 값일 수 있음 (파일 정의대로 그대로 저장)
-      const strokes = toNum(r[FIXED_MAP.strokesCol]);
+      // 이 파일에는 "스트로크"와 "최종성적" 둘 다 -12 같은 언더파 값이 들어 있음
+      const strokes =
+        toNum(row["최종성적"]) ?? toNum(row["스트로크"]) ?? null;
 
       parsed.push({
         externalNickname: nickname,
         rankStroke: rank ?? null,
-        strokes: strokes ?? null,
+        strokes,
         net: null,
         points: null,
-        rawJson: {
-          순위: r[FIXED_MAP.rankCol] ?? null,
-          닉네임: r[FIXED_MAP.nickCol] ?? null,
-          등급: grade,
-          스트로크: r[FIXED_MAP.strokesCol] ?? null,
-        },
-        grade, // 표시 목적(랭킹 API에서 rawJson과 함께 참고)
+        gender,
+        grade,
+        rawJson: row, // 전체를 그대로 보존
       });
     }
 
-    if (parsed.length === 0)
+    if (!parsed.length)
       return res.status(400).json({ error: "NO_VALID_ROWS" });
 
     // ── 참가자 매칭: 닉네임 기준 ──
@@ -184,46 +176,64 @@ export default async function handler(req, res) {
       for (const r of parsed) {
         const participantId = nick2id.get(r.externalNickname) || null;
 
-        const up = await tx.score.upsert({
+        const existing = await tx.score.findUnique({
           where: {
             eventId_externalNickname: {
               eventId,
               externalNickname: r.externalNickname,
             },
           },
-          create: {
-            eventId,
-            externalNickname: r.externalNickname,
-            participantId,
-            strokes: r.strokes,
-            net: r.net,
-            points: r.points,
-            rankStroke: r.rankStroke,
-            rawJson: {
-              ...r.rawJson,
-              등급: r.grade ?? r.rawJson?.등급 ?? null,
-            },
-            matched: !!participantId,
-          },
-          update: {
-            participantId,
-            strokes: r.strokes,
-            net: r.net,
-            points: r.points,
-            rankStroke: r.rankStroke,
-            rawJson: {
-              ...r.rawJson,
-              등급: r.grade ?? r.rawJson?.등급 ?? null,
-            },
-            matched: !!participantId,
-          },
+          select: { id: true },
         });
 
+        if (existing) {
+          await tx.score.update({
+            where: { id: existing.id },
+            data: {
+              participantId,
+              strokes: r.strokes,
+              net: null,
+              points: null,
+              rankStroke: r.rankStroke,
+              rawJson: {
+                ...r.rawJson,
+                성별: r.gender ?? r.rawJson?.성별 ?? null,
+                등급: r.grade ?? r.rawJson?.등급 ?? null,
+              },
+              matched: !!participantId,
+            },
+          });
+          updated++;
+        } else {
+          await tx.score.create({
+            data: {
+              eventId,
+              externalNickname: r.externalNickname,
+              participantId,
+              strokes: r.strokes,
+              net: null,
+              points: null,
+              rankStroke: r.rankStroke,
+              rawJson: {
+                ...r.rawJson,
+                성별: r.gender ?? r.rawJson?.성별 ?? null,
+                등급: r.grade ?? r.rawJson?.등급 ?? null,
+              },
+              matched: !!participantId,
+            },
+          });
+          created++;
+        }
+
         if (participantId) matched++;
-        // created/updated 구분 (간단히 updatedAt 비교 대신 존재 여부 확인하려면 별도 조회 필요)
-        // 여기선 합계만 반환
       }
-      return { created: parsed.length, updated: 0, matched, total: parsed.length };
+
+      return {
+        created,
+        updated,
+        matched,
+        total: parsed.length,
+      };
     });
 
     return res.status(200).json({ ok: true, ...result });
