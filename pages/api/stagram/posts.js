@@ -1,65 +1,87 @@
-// pages/api/stagram/posts.js
-import prisma from "../../../lib/prisma";
+import formidable from "formidable";
+import fs from "fs";
+import path from "path";
+import { getBaseDir, loadPosts, savePosts, genId, safeName } from "./lib";
+
+export const config = { api: { bodyParser: false } };
 
 export default async function handler(req, res) {
-  try {
-    if (req.method === "POST") {
-      const { authorName, authorDept, content, imageUrls } = req.body || {};
-
-      const hasContent = typeof content === "string" && content.trim() !== "";
-      const imgs = Array.isArray(imageUrls) ? imageUrls.filter(Boolean) : [];
-
-      if (!hasContent && imgs.length === 0) {
-        return res
-          .status(400)
-          .json({ error: "CONTENT_OR_IMAGE_REQUIRED" });
-      }
-
-      const post = await prisma.stagramPost.create({
-        data: {
-          authorName: hasContent
-            ? (authorName || null)
-            : (authorName || null), // 어차피 선택
-          authorDept: authorDept || null,
-          content: content || null,
-          imageUrls: imgs,
-          // likes / commentsCount 는 기본값 0
-        },
-      });
-
-      return res.status(200).json({ ok: true, post });
-    }
-
-    if (req.method === "GET") {
-      const { id } = req.query;
-
-      // ?id= 로 단일 조회 지원 (필요 없으면 이 블럭 빼도 됨)
-      if (id) {
-        const pid = Number(id);
-        if (!pid) {
-          return res.status(400).json({ error: "INVALID_ID" });
-        }
-        const post = await prisma.stagramPost.findUnique({
-          where: { id: pid },
-        });
-        if (!post) {
-          return res.status(404).json({ error: "NOT_FOUND" });
-        }
-        return res.status(200).json({ ok: true, post });
-      }
-
-      // id 없으면 전체 목록 (관리/디버그용)
-      const items = await prisma.stagramPost.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 100,
-      });
-      return res.status(200).json({ ok: true, items });
-    }
-
-    res.setHeader("Allow", "GET,POST");
-    return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
-  } catch (e) {
-    console.error("stagram/posts error:", e);
-    return res.status(500).json({ error: "SERVER_ERROR" });
+  // 단건 조회: GET /api/stagram/posts?id=xxx
+  if (req.method === "GET") {
+    const id = String(req.query.id || "");
+    const list = loadPosts();
+    const post = list.find((p) => p.id === id);
+    if (!post) return res.status(404).json({ ok: false, message: "NOT_FOUND" });
+    return res.status(200).json({ ok: true, item: post });
   }
+
+  // 생성: POST multipart/form-data
+  if (req.method === "POST") {
+    try {
+      const { uploads } = getBaseDir();
+
+      const form = formidable({
+        multiples: true,
+        keepExtensions: true,
+        maxFileSize: 10 * 1024 * 1024, // 10MB
+      });
+
+      const { fields, files } = await new Promise((resolve, reject) =>
+        form.parse(req, (err, flds, fls) => (err ? reject(err) : resolve({ fields: flds, files: fls })))
+      );
+
+      const title = String(fields.title || "").trim();
+      const content = String(fields.content || "").trim();
+      const tags = String(fields.tags || "")
+        .split(/[,\s]+/)
+        .filter(Boolean)
+        .slice(0, 10);
+
+      if (!title || !content) {
+        return res.status(400).json({ ok: false, message: "MISSING_FIELDS" });
+      }
+
+      const raw = files?.images
+        ? Array.isArray(files.images)
+          ? files.images
+          : [files.images]
+        : [];
+      const files5 = raw.slice(0, 5);
+
+      const imageNames = [];
+      for (const f of files5) {
+        const orig = safeName(f.originalFilename || f.newFilename || "image");
+        const ext = path.extname(orig) || ".jpg";
+        const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+        const dest = path.join(uploads, filename);
+        fs.copyFileSync(f.filepath, dest);
+        imageNames.push(filename);
+      }
+
+      const post = {
+        id: genId(),
+        author: fields.author ? String(fields.author) : "익명",
+        dept: fields.dept ? String(fields.dept) : null,
+        title,
+        content,
+        tags,
+        images: imageNames,
+        likes: 0,
+        comments: 0,
+        createdAt: Date.now(),
+      };
+
+      const list = loadPosts();
+      list.push(post);
+      savePosts(list);
+
+      return res.status(200).json({ ok: true, item: post });
+    } catch (e) {
+      console.error("stagram/posts POST error:", e);
+      return res.status(500).json({ ok: false, message: e.message || "SERVER_ERROR" });
+    }
+  }
+
+  res.setHeader("Allow", "GET, POST");
+  return res.status(405).json({ ok: false, message: "METHOD_NOT_ALLOWED" });
 }
