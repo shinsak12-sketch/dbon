@@ -1,184 +1,320 @@
 // pages/stagram/index.js
+import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 
 const fetcher = (url) => fetch(url).then((r) => r.json());
 
-function timeAgo(value) {
-  const d = typeof value === "number" ? new Date(value) : new Date(value || 0);
-  const diff = (Date.now() - d.getTime()) / 1000; // 초
+export default function StagramHome() {
+  const { data, mutate } = useSWR("/api/stagram/feed", fetcher, {
+    revalidateOnFocus: false,
+  });
 
-  if (!isFinite(diff) || diff < 0) return "";
+  // feed 응답 형태: { items: [...] } 또는 { posts: [...] } 둘 다 대응
+  const posts = data?.items || data?.posts || [];
 
-  if (diff < 60) return `${Math.floor(diff)}초 전`;
-  if (diff < 60 * 60) return `${Math.floor(diff / 60)}분 전`;
-  if (diff < 60 * 60 * 24) return `${Math.floor(diff / 3600)}시간 전`;
-  if (diff < 60 * 60 * 24 * 7) return `${Math.floor(diff / 86400)}일 전`;
+  const [activeImage, setActiveImage] = useState(null); // 확대용
+  const [openCommentsPostId, setOpenCommentsPostId] = useState(null);
+  const [commentText, setCommentText] = useState("");
 
-  return d.toLocaleDateString("ko-KR");
-}
-
-export default function StagramFeed() {
-  const { data, error, isLoading } = useSWR(
-    "/api/stagram/feed?page=1&size=20",
-    fetcher,
-    { revalidateOnFocus: false }
+  // 현재 열려있는 댓글들
+  const {
+    data: commentsData,
+    mutate: mutateComments,
+  } = useSWR(
+    openCommentsPostId
+      ? `/api/stagram/comments?postId=${openCommentsPostId}`
+      : null,
+    fetcher
   );
+  const comments = commentsData?.comments || [];
 
-  const posts = data?.items || [];
+  const handleLike = async (postId) => {
+    try {
+      const res = await fetch("/api/stagram/like", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId }),
+      });
+      const json = await res.json();
+      if (!json.ok) return;
+
+      // 로컬 feed 갱신
+      mutate(
+        (prev) => {
+          if (!prev) return prev;
+          const list = prev.items || prev.posts || [];
+          const newList = list.map((p) =>
+            p.id === postId ? { ...p, likes: json.post.likes } : p
+          );
+          if (prev.items) return { ...prev, items: newList };
+          if (prev.posts) return { ...prev, posts: newList };
+          return prev;
+        },
+        false // revalidate 안 함
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const toggleComments = (postId) => {
+    if (openCommentsPostId === postId) {
+      setOpenCommentsPostId(null);
+      setCommentText("");
+    } else {
+      setOpenCommentsPostId(postId);
+      setCommentText("");
+    }
+  };
+
+  const handleCommentSubmit = async (postId) => {
+    const text = commentText.trim();
+    if (!text) return;
+    try {
+      const res = await fetch("/api/stagram/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          postId,
+          content: text,
+          authorName: "", // 필요하면 나중에 로그인 정보 넣기
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) return;
+
+      setCommentText("");
+      // 댓글 목록 리프레시
+      mutateComments();
+      // 상단 카드의 commentsCount +1
+      mutate(
+        (prev) => {
+          if (!prev) return prev;
+          const list = prev.items || prev.posts || [];
+          const newList = list.map((p) =>
+            p.id === postId
+              ? { ...p, commentsCount: (p.commentsCount || 0) + 1 }
+              : p
+          );
+          if (prev.items) return { ...prev, items: newList };
+          if (prev.posts) return { ...prev, posts: newList };
+          return prev;
+        },
+        false
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50">
-      <div className="mx-auto max-w-3xl px-4 py-8 space-y-6">
-        {/* 헤더 + 우측 버튼 */}
-        <header className="flex items-center justify-between">
+    <main className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 pb-16">
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        {/* 상단 헤더 영역 (페이지 안) */}
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-emerald-900">
+            <h1 className="text-2xl md:text-3xl font-extrabold text-emerald-900">
               DB ON Stagram
             </h1>
             <p className="mt-1 text-sm text-emerald-900/70">
               사내 일상과 소식을 함께 나누는 디비온스타그램
             </p>
           </div>
-
-          <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2">
             <Link
               href="/choose"
-              className="inline-flex items-center rounded-full border border-emerald-700/30 bg-white/80 px-3 py-1.5 text-xs sm:text-sm font-semibold text-emerald-800 hover:bg-white"
+              className="hidden sm:inline-flex items-center rounded-full border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
             >
               ← 선택으로
             </Link>
             <Link
               href="/stagram/new"
-              className="inline-flex items-center rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500"
+              className="inline-flex items-center rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700"
             >
-              ＋ 글쓰기
+              + 글쓰기
             </Link>
           </div>
-        </header>
+        </div>
 
-        {/* 상태 표시 */}
-        {isLoading && (
-          <div className="rounded-2xl border bg-white/80 p-4 text-sm text-gray-600">
-            피드를 불러오는 중입니다…
-          </div>
-        )}
-        {error && (
-          <div className="rounded-2xl border bg-white/80 p-4 text-sm text-rose-600">
-            피드를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
-          </div>
-        )}
+        {/* 모바일용 선택으로 버튼 */}
+        <div className="sm:hidden mb-4">
+          <Link
+            href="/choose"
+            className="inline-flex items-center rounded-full border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
+          >
+            ← 선택으로
+          </Link>
+        </div>
 
         {/* 피드 리스트 */}
-        <section className="space-y-4">
-          {posts.length === 0 && !isLoading && !error && (
-            <div className="rounded-2xl border bg-white/80 p-6 text-center text-sm text-gray-500">
-              아직 등록된 디비온스타그램이 없습니다. 첫 글을 남겨 보세요!
-            </div>
-          )}
-
+        <div className="space-y-4">
           {posts.map((post) => (
             <article
               key={post.id}
-              className="rounded-2xl border bg-white p-4 shadow-sm"
+              className="rounded-3xl bg-white shadow-sm border border-emerald-50 p-4"
             >
-              {/* 상단: 아바타 + 이름 + 시간 */}
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-800">
-                  {post.author?.[0] || "익"}
+              {/* 상단 프로필 영역 */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold">
+                  {post.authorName?.[0] || "?"}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-gray-900">
-                      {post.author || "익명"}
-                    </span>
-                    {post.dept && (
-                      <span className="text-xs text-gray-500">
-                        ({post.dept})
+                <div>
+                  <div className="flex items-center gap-1 text-sm font-semibold text-gray-900">
+                    {post.authorName || "익명"}
+                    {post.authorDept && (
+                      <span className="text-gray-500 text-xs">
+                        ({post.authorDept})
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5 text-xs text-gray-400">
-                    {timeAgo(post.createdAt)}
+                  <div className="text-xs text-gray-400">
+                    {post.createdAt
+                      ? new Date(post.createdAt).toLocaleString("ko-KR", {
+                          month: "numeric",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : ""}
                   </div>
                 </div>
-                {/* 우측 더보기 자리만 확보 */}
-                <button
-                  type="button"
-                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-                  aria-label="더보기"
-                >
-                  …
-                </button>
               </div>
 
               {/* 본문 */}
-              <div className="mt-3 space-y-2">
-                {post.title && (
-                  <h2 className="text-sm font-semibold text-gray-900">
-                    {post.title}
-                  </h2>
-                )}
-                {post.content && (
-                  <p className="whitespace-pre-wrap text-sm text-gray-800">
-                    {post.content}
-                  </p>
-                )}
+              {post.content && (
+                <p className="text-sm text-gray-900 whitespace-pre-line mb-3">
+                  {post.content}
+                </p>
+              )}
 
-                {/* 태그 */}
-                {Array.isArray(post.tags) && post.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {post.tags.map((t) => (
-                      <span
-                        key={t}
-                        className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700"
-                      >
-                        #{t}
-                      </span>
-                    ))}
-                  </div>
-                )}
+              {/* 이미지들 */}
+              {Array.isArray(post.imageUrls) && post.imageUrls.length > 0 && (
+                <div className="mt-2 mb-3 grid grid-cols-3 gap-2">
+                  {post.imageUrls.map((url, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setActiveImage(url)}
+                      className="relative overflow-hidden rounded-xl border border-gray-100"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt=""
+                        className="h-28 w-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
 
-                {/* 이미지들 */}
-                {Array.isArray(post.images) && post.images.length > 0 && (
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    {post.images.map((img) => (
+              {/* 해시태그(있다면) – content에서 #단어만 뽑았던 구조라면 여기에 표시 가능, 지금은 스킵 */}
+
+              {/* 하단 액션 영역 */}
+              <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                <button
+                  type="button"
+                  onClick={() => handleLike(post.id)}
+                  className="inline-flex items-center gap-1 hover:text-rose-500"
+                >
+                  <span>❤️</span>
+                  <span>{post.likes || 0}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => toggleComments(post.id)}
+                  className="inline-flex items-center gap-1 hover:text-emerald-600"
+                >
+                  <span>💬</span>
+                  <span>{post.commentsCount || 0}</span>
+                </button>
+              </div>
+
+              {/* 댓글 영역 */}
+              {openCommentsPostId === post.id && (
+                <div className="mt-3 border-t border-gray-100 pt-3 space-y-3">
+                  {/* 댓글 리스트 */}
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {comments.length === 0 && (
+                      <p className="text-xs text-gray-400">
+                        아직 댓글이 없습니다. 첫 댓글을 남겨보세요!
+                      </p>
+                    )}
+                    {comments.map((c) => (
                       <div
-                        key={img}
-                        className="relative overflow-hidden rounded-xl border bg-gray-50"
+                        key={c.id}
+                        className="text-xs text-gray-800 bg-gray-50 rounded-2xl px-3 py-2"
                       >
-                        <img
-                          src={`/api/stagram/upload?name=${encodeURIComponent(
-                            img
-                          )}`}
-                          alt=""
-                          className="h-28 w-full object-cover"
-                        />
+                        <span className="font-semibold">
+                          {c.authorName || "익명"}
+                        </span>{" "}
+                        <span className="text-gray-400">
+                          ·{" "}
+                          {new Date(c.createdAt).toLocaleString("ko-KR", {
+                            month: "numeric",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        <div className="mt-1 whitespace-pre-line">
+                          {c.content}
+                        </div>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
 
-              {/* 하단: 좋아요/댓글 카운트 (기본 값) */}
-              <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
-                <span className="flex items-center gap-1">
-                  <span role="img" aria-label="like">
-                    ❤️
-                  </span>
-                  {post.likes ?? 0}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span role="img" aria-label="comment">
-                    💬
-                  </span>
-                  {post.comments ?? 0}
-                </span>
-              </div>
+                  {/* 댓글 입력 */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      placeholder="댓글을 입력하세요"
+                      className="flex-1 rounded-full border border-gray-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCommentSubmit(post.id)}
+                      className="shrink-0 rounded-full bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                    >
+                      등록
+                    </button>
+                  </div>
+                </div>
+              )}
             </article>
           ))}
-        </section>
+
+          {posts.length === 0 && (
+            <p className="text-center text-sm text-gray-500 mt-10">
+              아직 등록된 게시글이 없습니다. 첫 번째 디비온스타그램을 올려보세요!
+            </p>
+          )}
+        </div>
       </div>
+
+      {/* 이미지 확대 오버레이 */}
+      {activeImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center"
+          onClick={() => setActiveImage(null)}
+        >
+          <div
+            className="max-w-3xl max-h-[90vh] mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={activeImage}
+              alt=""
+              className="max-h-[90vh] w-auto rounded-xl shadow-xl"
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }
