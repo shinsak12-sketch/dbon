@@ -65,6 +65,7 @@ model Season {
   regs      Registration[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
   @@index([year])
 }
 
@@ -91,6 +92,7 @@ model Event {
   scores      Score[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+
   @@index([seasonId])
   @@index([beginAt])
   @@index([endAt])
@@ -105,6 +107,7 @@ model Notice {
   pinned    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@index([pinned, createdAt])
 }
 
@@ -122,6 +125,7 @@ model Participant {
   updatedAt    DateTime         @updatedAt
   scores       Score[]
   regs         Registration[]
+
   @@unique([nickname])
   @@index([name])
   @@index([type])
@@ -135,6 +139,7 @@ model Registration {
   season        Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now())
+
   @@unique([seasonId, participantId])
   @@index([seasonId])
   @@index([participantId])
@@ -156,6 +161,7 @@ model Score {
   event            Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
   participant      Participant? @relation(fields: [participantId], references: [id])
   createdAt        DateTime     @default(now())
+
   @@unique([eventId, externalNickname])
   @@unique([eventId, participantId])
   @@index([eventId])
@@ -203,13 +209,27 @@ enum ParticipantType {
 //// ─────────────────────────────
 
 model StagramPost {
-  id            Int       @id @default(autoincrement())
-  authorName    String?   // 작성자 이름 (선택)
-  authorDept    String?   // 소속/부서 (선택, 그냥 텍스트)
-  content       String?   @db.Text // 본문
-  imageUrls     String[]  @default([]) // 첨부 이미지 URL 목록
-  likes         Int       @default(0)  // 좋아요 수 (집계)
-  commentsCount Int       @default(0)  // 댓글 수 (집계)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id            Int              @id @default(autoincrement())
+  authorName    String?          // 작성자 이름 (선택)
+  authorDept    String?          // 소속/부서 (선택, 그냥 텍스트)
+  content       String?          @db.Text   // 본문
+  imageUrls     String[]         @default([]) // 첨부 이미지 URL 목록
+  likes         Int              @default(0)  // 좋아요 수 (집계)
+  commentsCount Int              @default(0)  // 댓글 수 (집계)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // ✅ 댓글 relation
+  comments      StagramComment[]
+}
+
+model StagramComment {
+  id         Int          @id @default(autoincrement())
+  post       StagramPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId     Int
+  authorName String?
+  content    String       @db.Text
+  createdAt  DateTime     @default(now())
+
+  @@index([postId])
 }
