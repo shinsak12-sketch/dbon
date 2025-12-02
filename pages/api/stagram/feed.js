@@ -1,22 +1,23 @@
-// pages/api/stagram/feed.js
-import prisma from "../../../lib/prisma";
+import { loadPosts } from "./lib";
 
-export default async function handler(req, res) {
-  try {
-    if (req.method !== "GET") {
-      res.setHeader("Allow", "GET");
-      return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
-    }
-
-    // 최신순 피드 (원하면 take 조절)
-    const items = await prisma.stagramPost.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    });
-
-    return res.status(200).json({ ok: true, items });
-  } catch (e) {
-    console.error("stagram/feed error:", e);
-    return res.status(500).json({ error: "SERVER_ERROR" });
+export default function handler(req, res) {
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
+    return res.status(405).json({ ok: false, message: "METHOD_NOT_ALLOWED" });
   }
+
+  const page = Math.max(1, Number(req.query.page || 1));
+  const size = Math.min(50, Math.max(1, Number(req.query.size || 10)));
+
+  const all = loadPosts().sort((a, b) => b.createdAt - a.createdAt);
+  const start = (page - 1) * size;
+  const items = all.slice(start, start + size);
+
+  return res.status(200).json({
+    ok: true,
+    page,
+    size,
+    total: all.length,
+    items,
+  });
 }
