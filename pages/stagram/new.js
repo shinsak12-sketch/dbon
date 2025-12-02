@@ -1,186 +1,215 @@
 // pages/stagram/new.js
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import Link from "next/link";
 
-export default function StagramNew() {
+export default function NewStagramPost() {
   const router = useRouter();
-  const [authorName, setAuthorName] = useState("");
-  const [authorDept, setAuthorDept] = useState("");
+
+  const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
+  const [dept, setDept] = useState("");
   const [content, setContent] = useState("");
-  const [files, setFiles] = useState([]); // {file, preview}[]
+  const [tags, setTags] = useState("");
+
+  const [files, setFiles] = useState([]);
+  const [previews, setPreviews] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const onFileChange = (e) => {
-    const list = Array.from(e.target.files || []);
-    if (!list.length) return;
-    const next = list.slice(0, 5); // 최대 5장 제한
-    const mapped = next.map((file) => ({
-      file,
-      preview: URL.createObjectURL(file),
-    }));
-    setFiles(mapped);
+  // 파일 선택
+  const handleFilesChange = (e) => {
+    const list = Array.from(e.target.files || []).slice(0, 5); // 최대 5장
+    setFiles(list);
+    setPreviews(
+      list.map((file) => ({
+        name: file.name,
+        url: URL.createObjectURL(file),
+      }))
+    );
   };
 
-  const removeImage = (idx) => {
-    setFiles((prev) => prev.filter((_, i) => i !== idx));
-  };
+  // 메모리 누수 방지
+  useEffect(() => {
+    return () => {
+      previews.forEach((p) => URL.revokeObjectURL(p.url));
+    };
+  }, [previews]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (submitting) return;
-
-    if (!content.trim() && files.length === 0) {
-      alert("내용 또는 사진을 입력해주세요.");
+    if (!title.trim() || !content.trim()) {
+      alert("제목과 내용을 입력해 주세요.");
       return;
     }
 
+    setSubmitting(true);
     try {
-      setSubmitting(true);
+      const fd = new FormData();
+      fd.append("title", title.trim());
+      fd.append("content", content.trim());
+      fd.append("tags", tags.trim());
+      if (author.trim()) fd.append("author", author.trim());
+      if (dept.trim()) fd.append("dept", dept.trim());
 
-      // 1) 파일들을 base64로 변환
-      let imageUrls = [];
-      if (files.length > 0) {
-        const asBase64 = await Promise.all(
-          files.map(
-            (f) =>
-              new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(f.file);
-              })
-          )
-        );
-
-        // 2) 업로드 API 호출 (현재는 그대로 에코해주는 형태)
-        const upRes = await fetch("/api/stagram/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ images: asBase64 }),
-        });
-        const upData = await upRes.json();
-        if (!upRes.ok || !upData.ok) {
-          throw new Error(upData?.error || "이미지 업로드 실패");
-        }
-        imageUrls = upData.urls || [];
-      }
-
-      // 3) 게시글 생성 API 호출
-      const res = await fetch("/api/stagram/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          authorName: authorName.trim() || undefined,
-          authorDept: authorDept.trim() || undefined,
-          content,
-          imageUrls,
-        }),
+      files.forEach((file) => {
+        fd.append("images", file); // 서버에서 images 필드로 받음
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data?.error || "게시글 등록 실패");
+      const res = await fetch("/api/stagram/posts", {
+        method: "POST",
+        body: fd,
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        throw new Error(json.message || "등록 실패");
       }
 
-      alert("게시글이 등록되었습니다.");
+      // 성공 시 피드로 이동
       router.push("/stagram");
     } catch (err) {
       console.error(err);
-      alert(err.message || "등록 중 오류가 발생했습니다.");
-    } finally {
+      alert("등록 중 오류가 발생했습니다. 다시 시도해 주세요.");
       setSubmitting(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
-      <div className="mx-auto max-w-xl px-4 py-4 sm:py-8">
-        {/* 상단 */}
-        <div className="flex items-center justify-between mb-4">
+    <main className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50">
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        {/* 상단 제목 + 뒤로가기 */}
+        <div className="mb-6 flex items-center justify-between">
           <button
             type="button"
             onClick={() => router.back()}
-            className="text-sm text-gray-600 hover:text-gray-900"
+            className="text-sm text-emerald-800 hover:underline"
           >
             ← 뒤로
           </button>
-          <h1 className="text-lg sm:text-xl font-bold text-emerald-900">
+          <h1 className="text-lg sm:text-xl font-extrabold text-emerald-900">
             새 디비온스타그램
           </h1>
-          <div className="w-10" />
+          <div className="w-12" /> {/* 가운데 정렬용 */}
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="rounded-2xl border bg-white p-4 sm:p-5 space-y-4 shadow-sm"
+          className="rounded-3xl border bg-white p-5 sm:p-6 shadow-sm space-y-4"
         >
+          {/* 1. 기본 정보 */}
           <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600">
+                작성자 이름
+              </label>
+              <input
+                type="text"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                placeholder="예) 신이삭"
+                className="mt-1 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600">
+                부서
+              </label>
+              <input
+                type="text"
+                value={dept}
+                onChange={(e) => setDept(e.target.value)}
+                placeholder="예) 인사팀"
+                className="mt-1 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              />
+            </div>
+          </div>
+
+          {/* 2. 제목 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600">
+              제목 <span className="text-rose-500">*</span>
+            </label>
             <input
               type="text"
-              className="rounded-md border px-3 py-2 text-sm"
-              placeholder="작성자 이름 (선택)"
-              value={authorName}
-              onChange={(e) => setAuthorName(e.target.value)}
-            />
-            <input
-              type="text"
-              className="rounded-md border px-3 py-2 text-sm"
-              placeholder="소속/부서 (선택)"
-              value={authorDept}
-              onChange={(e) => setAuthorDept(e.target.value)}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="어떤 소식인가요?"
+              className="mt-1 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
             />
           </div>
 
-          <textarea
-            className="w-full rounded-md border px-3 py-2 text-sm min-h-[120px]"
-            placeholder="어떤 일이 있었나요? #해시태그 를 함께 써보세요."
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-          />
+          {/* 3. 내용 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600">
+              내용 <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              rows={5}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="자유롭게 내용을 작성해 주세요."
+              className="mt-1 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+            />
+          </div>
 
-          {/* 이미지 업로드 */}
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-800">
+          {/* 4. 태그 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600">
+              태그 (쉼표 또는 띄어쓰기로 구분)
+            </label>
+            <input
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="#워크샵 #회식 #공지"
+              className="mt-1 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+            />
+          </div>
+
+          {/* 5. 이미지 첨부 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600">
               사진 첨부 (최대 5장)
             </label>
             <input
               type="file"
               accept="image/*"
               multiple
-              onChange={onFileChange}
-              className="block w-full text-sm"
+              onChange={handleFilesChange}
+              className="mt-1 block w-full text-sm"
             />
 
-            {files.length > 0 && (
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                {files.map((f, idx) => (
+            {/* 미리보기 */}
+            {previews.length > 0 && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {previews.map((p) => (
                   <div
-                    key={idx}
-                    className="relative rounded-lg overflow-hidden border"
+                    key={p.url}
+                    className="relative overflow-hidden rounded-xl border bg-gray-50"
                   >
                     <img
-                      src={f.preview}
-                      alt={`preview-${idx}`}
+                      src={p.url}
+                      alt={p.name}
                       className="h-24 w-full object-cover"
                     />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(idx)}
-                      className="absolute top-1 right-1 rounded-full bg-black/60 text-white text-xs px-1"
-                    >
-                      ✕
-                    </button>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="flex justify-end">
+          {/* 버튼 영역 */}
+          <div className="pt-2 flex justify-end gap-2">
+            <Link
+              href="/stagram"
+              className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              취소
+            </Link>
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex items-center rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-60"
+              className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-60"
             >
               {submitting ? "등록 중…" : "등록하기"}
             </button>
