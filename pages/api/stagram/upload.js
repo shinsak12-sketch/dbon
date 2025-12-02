@@ -1,24 +1,17 @@
-// pages/api/stagram/upload.js
+import fs from "fs";
+import path from "path";
+import mime from "mime";
+import { getBaseDir, safeName } from "./lib";
 
-export default async function handler(req, res) {
-  try {
-    if (req.method !== "POST") {
-      res.setHeader("Allow", "POST");
-      return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
-    }
+export default function handler(req, res) {
+  const name = safeName(req.query.name || "");
+  if (!name) return res.status(400).send("Bad Request");
 
-    const body = req.body || {};
-    const images = Array.isArray(body.images) ? body.images : [];
+  const { uploads } = getBaseDir();
+  const filePath = path.join(uploads, name);
+  if (!fs.existsSync(filePath)) return res.status(404).send("Not Found");
 
-    if (!images.length) {
-      return res.status(400).json({ error: "NO_IMAGES" });
-    }
-
-    // TODO: 여기서 실제 스토리지(S3 등)에 업로드하고, 공개 URL 배열을 반환하면 됨.
-    // 현재는 클라이언트에서 보낸 base64 dataURL 그대로 반환 (데모/임시용)
-    return res.status(200).json({ ok: true, urls: images });
-  } catch (e) {
-    console.error("stagram/upload error:", e);
-    return res.status(500).json({ error: "SERVER_ERROR" });
-  }
+  const type = mime.getType(filePath) || "application/octet-stream";
+  res.setHeader("Content-Type", type);
+  fs.createReadStream(filePath).pipe(res);
 }
