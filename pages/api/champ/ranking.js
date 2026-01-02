@@ -44,12 +44,12 @@ export default async function handler(req, res) {
     });
 
     // ③ 시즌 평균타수 (등록자만)
-    //   registration으로 시즌 대상자 뽑고, 시즌 내 strokes 평균 구함
     const regs = await prisma.registration.findMany({
       where: { seasonId: event.seasonId },
       select: { participantId: true },
     });
     const pids = regs.map((r) => r.participantId);
+
     const seasonScores = await prisma.score.findMany({
       where: {
         participantId: { in: pids.length ? pids : [-1] },
@@ -58,6 +58,7 @@ export default async function handler(req, res) {
       },
       select: { participantId: true, strokes: true },
     });
+
     const sumCnt = new Map(); // pid -> {sum, cnt}
     for (const s of seasonScores) {
       const cur = sumCnt.get(s.participantId) || { sum: 0, cnt: 0 };
@@ -73,38 +74,58 @@ export default async function handler(req, res) {
     // ④ 행 조립 (gender/grade는 rawJson에서 시도)
     const items = scores.map((s, i) => {
       const r = s.rawJson || {};
-      // strokes/net/points 보정(혹시 null이면 rawJson에서)
-      let strokes = s.strokes ?? toNum(pick(r, ["합계","그로스","타수","score","total","타수(실제)","실제타수","GROSS"]));
-      if (strokes == null) {
-        const out = toNum(pick(r, ["out","전반","OUT","전반타수"]));
-        const inn = toNum(pick(r, ["in","후반","IN","후반타수"]));
+
+      // ✅ 핵심: 엑셀 원본(rawJson) 값을 최우선으로 사용하고,
+      // rawJson에 없을 때만 DB 컬럼을 fallback.
+      const rawStrokes = toNum(
+        pick(r, ["합계", "그로스", "타수", "score", "total", "타수(실제)", "실제타수", "GROSS"])
+      );
+      const rawNet = toNum(
+        pick(r, ["넷", "net", "타수(보정)", "보정타수", "NET", "net score", "net-score", "핸디적용"])
+      );
+
+      let strokes = rawStrokes ?? s.strokes ?? null;
+      let net = rawNet ?? s.net ?? null;
+
+      // rawStrokes가 없고 out/in으로 합산 가능한 경우만 strokes 계산
+      if (rawStrokes == null && strokes == null) {
+        const out = toNum(pick(r, ["out", "전반", "OUT", "전반타수"]));
+        const inn = toNum(pick(r, ["in", "후반", "IN", "후반타수"]));
         if (out != null && inn != null) strokes = out + inn;
       }
-      const net = s.net ?? toNum(pick(r, ["넷","net","타수(보정)","보정타수","NET","net score","net-score","핸디적용"]));
-      const points = s.points ?? toNum(pick(r, ["포인트","points","stableford","스테이블포드","연간P","연간포인트","point","POINTS"])) ?? 0;
+
+      const points =
+        s.points ??
+        toNum(
+          pick(r, ["포인트", "points", "stableford", "스테이블포드", "연간P", "연간포인트", "point", "POINTS"])
+        ) ??
+        0;
 
       // 성별 / 등급 추정
       const gender =
-        pick(r, ["성별","gender","sex"]) ??
-        (r["남"] !== undefined ? "남" : (r["여"] !== undefined ? "여" : null));
-      const grade = pick(r, ["등급","grade","class","level"]);
+        pick(r, ["성별", "gender", "sex"]) ??
+        (r["남"] !== undefined ? "남" : r["여"] !== undefined ? "여" : null);
+      const grade = pick(r, ["등급", "grade", "class", "level"]);
 
       // 구분(참가자 타입)
       const type =
-        s.participant?.type === "FAMILY" ? "가족" :
-        (s.participant?.type === "STAFF" || s.participant?.type === "EMPLOYEE") ? "직원" : "—";
+        s.participant?.type === "FAMILY"
+          ? "가족"
+          : s.participant?.type === "STAFF" || s.participant?.type === "EMPLOYEE"
+          ? "직원"
+          : "—";
 
       return {
         rank: i + 1,
         realName: s.participant?.name || "—",
         nickname: s.externalNickname,
         gender: gender || "—",
-        type,                                            // 구분
+        type,
         grade: grade || "—",
-        strokes: strokes ?? null,
-        net: net ?? null,
+        strokes,
+        net,
         points,
-        avgStroke: s.participantId ? (avgByPid[s.participantId] || "—") : "—",
+        avgStroke: s.participantId ? avgByPid[s.participantId] || "—" : "—",
       };
     });
 
