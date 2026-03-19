@@ -9,7 +9,6 @@ function getImageSrc(img) {
   if (!img) return "";
   const v = String(img);
 
-  // 이미 완전한 URL / 상대경로 / base64면 그대로 사용
   if (
     v.startsWith("http://") ||
     v.startsWith("https://") ||
@@ -19,7 +18,6 @@ function getImageSrc(img) {
     return v;
   }
 
-  // 파일명만 저장된 경우 upload API로 서빙
   return `/api/stagram/upload?name=${encodeURIComponent(v)}`;
 }
 
@@ -161,7 +159,7 @@ export default function StagramHome() {
         </div>
 
         {/* 피드 리스트 */}
-        <div className="space-y-4">
+        <div className="space-y-5">
           {posts.map((post) => {
             const authorName = post.authorName || post.author || "익명";
             const authorDept = post.authorDept || post.dept || "";
@@ -174,14 +172,14 @@ export default function StagramHome() {
             return (
               <article
                 key={post.id}
-                className="rounded-3xl bg-white shadow-sm border border-emerald-50 p-4"
+                className="overflow-hidden rounded-3xl bg-white shadow-sm border border-emerald-50"
               >
                 {/* 상단 프로필 영역 */}
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3 px-4 pt-4 pb-3">
                   <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold">
                     {authorName?.[0] || "?"}
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <div className="flex items-center gap-1 text-sm font-semibold text-gray-900">
                       {authorName}
                       {authorDept && (
@@ -203,37 +201,17 @@ export default function StagramHome() {
                   </div>
                 </div>
 
-                {/* 제목 */}
-                {post.title && (
-                  <p className="text-base font-semibold text-gray-900 mb-2">
-                    {post.title}
-                  </p>
-                )}
-
-                {/* 본문 */}
-                {post.content && (
-                  <p className="text-sm text-gray-900 whitespace-pre-line mb-3">
-                    {post.content}
-                  </p>
-                )}
-
-                {/* 태그 */}
-                {Array.isArray(post.tags) && post.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {post.tags.map((tag, idx) => (
-                      <span
-                        key={`${tag}-${idx}`}
-                        className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* 이미지들 */}
+                {/* 사진 먼저, 더 크게 */}
                 {images.length > 0 && (
-                  <div className="mt-2 mb-3 grid grid-cols-3 gap-2">
+                  <div
+                    className={`${
+                      images.length === 1
+                        ? "grid grid-cols-1"
+                        : images.length === 2
+                        ? "grid grid-cols-2 gap-1 px-4"
+                        : "grid grid-cols-3 gap-1 px-4"
+                    }`}
+                  >
                     {images.map((img, idx) => {
                       const src = getImageSrc(img);
                       return (
@@ -241,12 +219,16 @@ export default function StagramHome() {
                           key={idx}
                           type="button"
                           onClick={() => setActiveImage(src)}
-                          className="relative overflow-hidden rounded-xl border border-gray-100"
+                          className="relative overflow-hidden rounded-2xl bg-gray-100"
                         >
                           <img
                             src={src}
                             alt=""
-                            className="h-28 w-full object-cover"
+                            className={`w-full object-cover ${
+                              images.length === 1
+                                ? "h-[320px] sm:h-[460px]"
+                                : "h-[180px] sm:h-[240px]"
+                            }`}
                           />
                         </button>
                       );
@@ -254,8 +236,37 @@ export default function StagramHome() {
                   </div>
                 )}
 
+                {/* 내용 */}
+                <div className="px-4 pt-4">
+                  {post.title && (
+                    <p className="text-base font-semibold text-gray-900 mb-2">
+                      {post.title}
+                    </p>
+                  )}
+
+                  {post.content && (
+                    <p className="text-sm text-gray-900 whitespace-pre-line mb-3 leading-6">
+                      {post.content}
+                    </p>
+                  )}
+
+                  {/* 태그는 내용 아래 */}
+                  {Array.isArray(post.tags) && post.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {post.tags.map((tag, idx) => (
+                        <span
+                          key={`${tag}-${idx}`}
+                          className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* 하단 액션 영역 */}
-                <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                <div className="px-4 pb-4 flex items-center gap-4 text-sm text-gray-500">
                   <button
                     type="button"
                     onClick={() => handleLike(post.id)}
@@ -277,7 +288,7 @@ export default function StagramHome() {
 
                 {/* 댓글 영역 */}
                 {openCommentsPostId === post.id && (
-                  <div className="mt-3 border-t border-gray-100 pt-3 space-y-3">
+                  <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
                     <div className="space-y-2 max-h-40 overflow-y-auto">
                       {comments.length === 0 && (
                         <p className="text-xs text-gray-400">
@@ -345,7 +356,7 @@ export default function StagramHome() {
           onClick={() => setActiveImage(null)}
         >
           <div
-            className="max-w-3xl max-h-[90vh] mx-4"
+            className="max-w-5xl max-h-[90vh] mx-4"
             onClick={(e) => e.stopPropagation()}
           >
             <img
